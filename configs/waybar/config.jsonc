@@ -1,0 +1,5 @@
+{ "layer": "top", "position": "top", "height": 28,
+  "modules-left": ["hyprland/workspaces"], "modules-center": ["clock"],
+  "modules-right": ["cpu", "memory", "battery"],
+  "clock": { "format": "{:%H:%M}" }, "cpu": { "format": "cpu {usage}%" },
+  "memory": { "format": "mem {}%" }, "battery": { "format": "bat {capacity}%" } }
