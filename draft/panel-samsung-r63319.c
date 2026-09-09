@@ -199,16 +199,17 @@ static void r63319_reset(struct r63319_panel *ctx)
 }
 
 /* Read one DCS register. Always LP, so stages stay comparable. Returns <0 on error. */
-static int r63319_rd(struct r63319_panel *ctx, u8 cmd, const char *label)
+static int r63319_rd_on(struct r63319_panel *ctx, struct mipi_dsi_device *dsi,
+			u8 cmd, const char *label)
 {
 	struct device *dev = &ctx->dsi[0]->dev;
-	unsigned long saved = ctx->dsi[0]->mode_flags;
+	unsigned long saved = dsi->mode_flags;
 	u8 val = 0;
 	int ret;
 
-	ctx->dsi[0]->mode_flags |= MIPI_DSI_MODE_LPM;
-	ret = mipi_dsi_dcs_read(ctx->dsi[0], cmd, &val, 1);
-	ctx->dsi[0]->mode_flags = saved;
+	dsi->mode_flags |= MIPI_DSI_MODE_LPM;
+	ret = mipi_dsi_dcs_read(dsi, cmd, &val, 1);
+	dsi->mode_flags = saved;
 
 	if (ret < 0) {
 		if (label)
@@ -220,6 +221,11 @@ static int r63319_rd(struct r63319_panel *ctx, u8 cmd, const char *label)
 	if (label)
 		dev_info(dev, "  rd %s (0x%02x) = 0x%02x\n", label, cmd, val);
 	return val;
+}
+
+static int r63319_rd(struct r63319_panel *ctx, u8 cmd, const char *label)
+{
+	return r63319_rd_on(ctx, ctx->dsi[0], cmd, label);
 }
 
 /*
@@ -365,17 +371,24 @@ static ssize_t r63319_cmd_write(struct file *file, const char __user *ubuf,
 	if (!tok)
 		return -EINVAL;
 
+	/*
+	 * r / w      link 0 (dsi[0])        r1 / w1   link 1 (dsi[1])
+	 * wb         both links, in sequence, the way the driver itself does
+	 */
 	if (*tok == 'r') {
 		unsigned int reg;
+		struct mipi_dsi_device *dsi = tok[1] == '1' ? ctx->dsi[1] : ctx->dsi[0];
 
-		if (!p || kstrtouint(strim(p), 16, &reg))
+		if (!dsi || !p || kstrtouint(strim(p), 16, &reg))
 			return -EINVAL;
-		r63319_rd(ctx, (u8)reg, "debugfs");
+		r63319_rd_on(ctx, dsi, (u8)reg, tok[1] == '1' ? "debugfs@1" : "debugfs");
 		return len;
 	}
 
 	if (*tok != 'w')
 		return -EINVAL;
+	if ((tok[1] == '1' || tok[1] == 'b') && !ctx->dsi[1])
+		return -ENODEV;
 
 	while ((tok = strsep(&p, " \t")) && n < (int)sizeof(buf)) {
 		unsigned int byte;
@@ -389,11 +402,17 @@ static ssize_t r63319_cmd_write(struct file *file, const char __user *ubuf,
 	if (!n)
 		return -EINVAL;
 
-	dsi_ctx.dsi = ctx->dsi[0];
-	mipi_dsi_dcs_write_buffer_multi(&dsi_ctx, buf, n);
+	if (tok[1] == 'b') {
+		r63319_dual(mipi_dsi_dcs_write_buffer_multi, &dsi_ctx,
+			    ctx->dsi[0], ctx->dsi[1], buf, n);
+	} else {
+		dsi_ctx.dsi = tok[1] == '1' ? ctx->dsi[1] : ctx->dsi[0];
+		mipi_dsi_dcs_write_buffer_multi(&dsi_ctx, buf, n);
+	}
 	ret = dsi_ctx.accum_err;
 
-	dev_info(&ctx->dsi[0]->dev, "debugfs: wrote %d byte%s, cmd 0x%02x, err %d\n",
+	dev_info(&ctx->dsi[0]->dev, "debugfs[%s]: wrote %d byte%s, cmd 0x%02x, err %d\n",
+		 tok[1] == 'b' ? "both" : tok[1] == '1' ? "link1" : "link0",
 		 n, n == 1 ? "" : "s", buf[0], ret);
 
 	if (ret)
@@ -523,10 +542,15 @@ static int r63319_enable(struct drm_panel *panel)
 	struct r63319_panel *ctx = to_r63319(panel);
 	struct mipi_dsi_multi_context dsi_ctx = { 0 };
 	struct device *dev = &ctx->dsi[0]->dev;
-	int pm, i;
+	int pm = 0, i, attempt;
 
-	r63319_dual(mipi_dsi_dcs_exit_sleep_mode_multi, &dsi_ctx,
-		    ctx->dsi[0], ctx->dsi[1]);
+	/*
+	 * Let the video stream settle before the first command goes out.
+	 * In split display both links have just started streaming, and the
+	 * exit_sleep_mode sent immediately after did not latch; the same
+	 * command sent a minute later from the DCS console latched in 200ms.
+	 */
+	mipi_dsi_msleep(&dsi_ctx, 100);
 
 	/*
 	 * The DCS spec's 120ms after sleep_out is a minimum, and this panel
@@ -535,16 +559,33 @@ static int r63319_enable(struct drm_panel *panel)
 	 * meant display_on was asserted into a panel that was still asleep,
 	 * which it accepts without complaint -- display_on latches, sleep_out
 	 * does not, and the result is a black screen with the backlight lit.
-	 * Poll instead of guessing a larger constant.
+	 * Poll instead of guessing a larger constant, and retry: odd attempts
+	 * go to both links the way downstream broadcasts, even attempts to
+	 * link 0 alone, which is what the console wake-up used.
 	 */
-	for (i = 0; i < 12; i++) {
-		mipi_dsi_msleep(&dsi_ctx, 40);
-		pm = r63319_rd(ctx, MIPI_DCS_GET_POWER_MODE, NULL);
-		if (pm > 0 && (pm & BIT(4)))
+	for (attempt = 1; attempt <= 4; attempt++) {
+		if (attempt & 1 || !ctx->dsi[1])
+			r63319_dual(mipi_dsi_dcs_exit_sleep_mode_multi, &dsi_ctx,
+				    ctx->dsi[0], ctx->dsi[1]);
+		else {
+			dsi_ctx.dsi = ctx->dsi[0];
+			mipi_dsi_dcs_exit_sleep_mode_multi(&dsi_ctx);
+		}
+		for (i = 0; i < 12; i++) {
+			mipi_dsi_msleep(&dsi_ctx, 40);
+			pm = r63319_rd(ctx, MIPI_DCS_GET_POWER_MODE, NULL);
+			if (pm > 0 && (pm & BIT(4)))
+				break;
+		}
+		if (i < 12) {
+			dev_info(dev, "sleep_out latched on attempt %d (%s) after ~%dms\n",
+				 attempt, attempt & 1 ? "both links" : "link 0",
+				 (i + 1) * 40);
 			break;
+		}
+		dev_warn(dev, "sleep_out did not latch within 480ms (attempt %d)\n",
+			 attempt);
 	}
-	if (i == 12)
-		dev_warn(dev, "sleep_out did not latch within 480ms\n");
 
 	r63319_dual(mipi_dsi_dcs_set_display_on_multi, &dsi_ctx,
 		    ctx->dsi[0], ctx->dsi[1]);

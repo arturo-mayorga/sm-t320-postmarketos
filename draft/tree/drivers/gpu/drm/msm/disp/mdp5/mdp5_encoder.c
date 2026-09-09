@@ -36,16 +36,18 @@
  *
  * The master encoder borrows the slave encoder's INTF and CTL and records
  * them in the CRTC pipeline (r_intf / r_ctl); the CRTC, planes and CTL code
- * then route the right mixer through them. All of it sits behind
+ * then route the right mixer through them. It engages automatically when
+ * the DSI manager reports a bonded panel on hardware older than rev 3;
  *
- *	msm.mdp5_split_dsi=1
+ *	msm.mdp5_split_dsi=0 / =1
  *
- * so one kernel boots both the known-good single-link configuration and this.
+ * forces it off or on, so one kernel boots both the known-good single-link
+ * configuration and this.
  */
-static bool mdp5_split_dsi;
-module_param(mdp5_split_dsi, bool, 0600);
+static int mdp5_split_dsi = -1;
+module_param(mdp5_split_dsi, int, 0600);
 MODULE_PARM_DESC(mdp5_split_dsi,
-		 "Drive INTF2 alongside INTF1 for a bonded (dual-link) DSI panel");
+		 "Split display for bonded DSI: -1 auto (default), 0 off, 1 on");
 
 /* fixed by the SoC: DSI0 -> INTF1 (master), DSI1 -> INTF2 (slave) */
 #define MDP5_SPLIT_MASTER_INTF	1
@@ -59,9 +61,22 @@ static struct mdp5_kms *get_kms(struct drm_encoder *encoder)
 
 static bool mdp5_encoder_is_split_master(struct mdp5_encoder *mdp5_encoder)
 {
-	return mdp5_split_dsi &&
-	       mdp5_encoder->intf->type == INTF_DSI &&
-	       mdp5_encoder->intf->num == MDP5_SPLIT_MASTER_INTF;
+	struct drm_device *dev = mdp5_encoder->base.dev;
+	struct msm_drm_private *priv = dev->dev_private;
+	struct mdp5_kms *mdp5_kms = get_kms(&mdp5_encoder->base);
+	bool want;
+
+	if (mdp5_encoder->intf->type != INTF_DSI ||
+	    mdp5_encoder->intf->num != MDP5_SPLIT_MASTER_INTF)
+		return false;
+
+	if (mdp5_split_dsi >= 0)
+		want = mdp5_split_dsi;
+	else
+		want = priv->dsi[0] && msm_dsi_is_bonded_dsi(priv->dsi[0]) &&
+		       mdp5_cfg_get_hw_rev(mdp5_kms->cfg) < 3;
+
+	return want;
 }
 
 static struct mdp5_encoder *mdp5_encoder_find_intf(struct drm_device *dev,

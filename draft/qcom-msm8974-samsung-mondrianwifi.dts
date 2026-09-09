@@ -289,6 +289,9 @@
 	 * mode (~320 MHz pixel / ~1.92 GHz per lane), and the PLL rejects it:
 	 *   msm_dsi_host_power_on: failed to enable link clocks. ret=-22
 	 */
+	qcom,dual-dsi-mode;
+	qcom,master-dsi;
+
 	vdd-supply   = <&pm8941_l22>;
 	vddio-supply = <&pm8941_l12>;
 	vdda-supply  = <&pm8941_l2>;
@@ -319,6 +322,13 @@
 					remote-endpoint = <&mdss_dsi0_out>;
 				};
 			};
+
+			port@1 {
+				reg = <1>;
+				panel_in1: endpoint {
+					remote-endpoint = <&mdss_dsi1_out>;
+				};
+			};
 		};
 	};
 };
@@ -334,11 +344,27 @@
 };
 
 &mdss_dsi1 {
-	status = "disabled";
+	status = "okay";
+
+	qcom,dual-dsi-mode;
+
+	/* DSI1 is the slave link, so it runs off DSI0's PLL */
+	assigned-clock-parents = <&mdss_dsi0_phy DSI_BYTE_PLL_CLK>,
+				 <&mdss_dsi0_phy DSI_PIXEL_PLL_CLK>;
+
+	vdd-supply   = <&pm8941_l22>;
+	vddio-supply = <&pm8941_l12>;
+	vdda-supply  = <&pm8941_l2>;
+};
+
+&mdss_dsi1_out {
+	remote-endpoint = <&panel_in1>;
+	data-lanes = <0 1 2 3>;
 };
 
 &mdss_dsi1_phy {
-	status = "disabled";
+	status = "okay";
+	vddio-supply = <&pm8941_l12>;
 };
 
 /*
@@ -376,32 +402,4 @@
  */
 &gpu {
 	status = "okay";
-};
-
-/*
- * Persistent kernel log across a crash or a reboot.
- *
- * A kernel that boot loops leaves nothing behind: no ssh, no dmesg, and the
- * only recovery is to flash a known-good image, which discards the evidence
- * along with the fault. That happened with the bonded-DSI experiment. ramoops
- * keeps the last boot's console in memory the bootloader does not clear, so
- * the reason survives into the next boot and can be read from
- * /sys/fs/pstore/console-ramoops-0.
- *
- * 0x3e8e0000 is where the Galaxy S5 (klte) puts it -- same vendor, same SoC
- * family, same bootloader lineage -- and this device's cmdline carries the
- * matching Samsung sec_log=0x100000@0x10000008, so the region is reserved by
- * the bootloader rather than being ordinary RAM we would be corrupting.
- */
-&reserved_memory {
-	ramoops@3e8e0000 {
-		compatible = "ramoops";
-		reg = <0x3e8e0000 0x200000>;
-
-		console-size = <0x100000>;
-		record-size = <0x10000>;
-		ftrace-size = <0x10000>;
-		pmsg-size = <0x80000>;
-		ecc-size = <8>;
-	};
 };
