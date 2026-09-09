@@ -9,15 +9,18 @@
  */
 
 #include <linux/backlight.h>
-#include <linux/debugfs.h>
 #include <linux/bits.h>
+#include <linux/debugfs.h>
 #include <linux/delay.h>
+#include <linux/fs.h>
 #include <linux/gpio/consumer.h>
 #include <linux/mod_devicetable.h>
 #include <linux/module.h>
 #include <linux/of.h>
 #include <linux/of_graph.h>
 #include <linux/regulator/consumer.h>
+#include <linux/string.h>
+#include <linux/uaccess.h>
 
 #include <video/mipi_display.h>
 
@@ -348,7 +351,7 @@ static ssize_t r63319_cmd_write(struct file *file, const char __user *ubuf,
 
 		if (!p || kstrtouint(strim(p), 16, &reg))
 			return -EINVAL;
-		r63319_rd(ctx, reg, "debugfs");
+		r63319_rd(ctx, (u8)reg, "debugfs");
 		return len;
 	}
 
@@ -374,7 +377,10 @@ static ssize_t r63319_cmd_write(struct file *file, const char __user *ubuf,
 	dev_info(&ctx->dsi[0]->dev, "debugfs: wrote %d byte%s, cmd 0x%02x, err %d\n",
 		 n, n == 1 ? "" : "s", buf[0], ret);
 
-	return ret ? ret : len;
+	if (ret)
+		return ret;
+
+	return len;
 }
 
 static const struct file_operations r63319_cmd_fops = {
