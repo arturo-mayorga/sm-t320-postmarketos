@@ -366,3 +366,14 @@
 
 	status = "okay";
 };
+
+/*
+ * Adreno 330. The SoC dtsi ships gpu@fdb00000 as status = "disabled"; every
+ * board that wants acceleration enables it itself (compare
+ * qcom-msm8974pro-samsung-klte-common.dtsi). Without this, msm probes the
+ * display only and prints "no GPU device was found", and freedreno fails
+ * every MSM_GET_PARAM with -ENXIO, so no EGL/GLES context can be created.
+ */
+&gpu {
+	status = "okay";
+};

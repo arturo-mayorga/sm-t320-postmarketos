@@ -721,3 +721,68 @@ with a known-nonzero default to prove the link before trusting any read.
   - Console font tiny: 800x2560 at 8x16 = 100x160 chars on an 8.4" panel.
   - Adoption depends on aboot lighting the panel. A proper reset+init path is
     still unsolved; inherit_splash=0 still yields a dark panel.
+
+## SESSION 3 - full userland + GPU, blocked on MDP5 vsync IRQ
+
+### Working now
+Full postmarketOS rootfs on mmcblk0p26 (11.4G), SSH over USB net, seatd+dbus,
+touchscreen detected (Synaptics s5707), and the whole Hyprland stack installed
+for armv7 (hyprland 0.54.3, waybar, alacritty, fuzzel, mako, swaybg, pipewire).
+
+GPU WORKS. Adreno 330 via freedreno: real GLES context, 109 extensions,
+7107 draw submissions completed. Needs three things, all found the hard way:
+  1. &gpu { status = "okay"; }  - gpu@fdb00000 is disabled in the SoC dtsi and
+     every board enables it itself. Without it: "no GPU device was found" and
+     freedreno fails MSM_GET_PARAM with -ENXIO.
+  2. msm.vram=128m - no IOMMU, so display+GPU share one CMA carveout. The 16m
+     default cannot hold two 800x2560 buffers.
+  3. msm.allow_vram_carveout=1 - a3xx_gpu_init refuses to start without an
+     IOMMU unless this is set (a3xx_gpu.c:593). msm8974 has NO iommu node in
+     mainline at all, only a commented-out "// iommus = <&gpu_iommu 0>".
+Enabling the GPU without (3) makes the GPU bind fail, which aborts the WHOLE
+msm DRM bind and takes the display down with it.
+
+Hyprland runs, maps windows, allocates dmabufs. Heavy render paths lock the GPU
+(hangcheck, GL_GUILTY_CONTEXT_RESET); with rounding/blur/shadow/animations all
+off it is stable.
+
+### THE BLOCKER: MDP5 INTF1_VSYNC interrupt never fires
+Every page flip fails, atomic and legacy alike:
+  atomic drm request: failed to commit: Resource busy (EBUSY)
+  legacy drm: drmModePageFlip failed: Resource busy
+Not a Hyprland problem - modetest -v reproduces it exactly: mode sets fine,
+one flip is accepted, the completion event never arrives, no error is printed.
+
+The display IS scanning and Linux CAN drive it: modetest paints SMPTE bars on
+the panel, and DRM's vblank counter advances (hw=47610->47611->47612, scanout
+position walking 2478->2487->2508). But that count comes from the scanout
+POSITION REGISTER, not from an interrupt - which is why it looked healthy.
+Meanwhile /proc/interrupts irq 57 (msm_mdss 0) moved only +6 in 8s of flipping.
+At 60Hz vblank that should be ~480. The flush IRQ fires; the vsync IRQ does not.
+mdp5_crtc_wait_for_flush_done never logs "vblank time out", so the commit tail
+is not stalling - EBUSY comes from drm_atomic_helper_setup_commit refusing a new
+nonblocking commit while the previous flip_done is incomplete.
+intf2vblank() maps DSI0 -> INTF1 -> MDP5_IRQ_INTF1_VSYNC (bit 27), consistent
+with boot log "Skipping eDP interface 0" / "fall back to the other CTL category
+for INTF 1!". The mask looks correct, so suspicion is that the INTF vsync is not
+actually armed in hardware because Linux never performed a real modeset on a
+panel it owns.
+
+### Cold init still unsolved, and it BOOT LOOPS
+inherit_splash=0 on the cmdline (panel_samsung_r63319.inherit_splash=0) makes
+the device reboot in a loop. Probably the staged A-F diagnostics in r63319_on:
+every DCS read/write on a panel that is not answering costs a timeout, and the
+accumulated probe time trips a watchdog. Retry with a PLAIN init sequence and no
+readbacks before concluding cold init is impossible.
+
+### Do not repeat these
+- Never unbind/rebind msm_mdp with a large VRAM carveout: teardown frees the
+  128m CMA block and the rebind cannot get it back ("failed to allocate VRAM"),
+  killing the display until reboot. That is what wedged the device this session.
+- pmbootstrap install regenerates rootfs filesystem UUIDs every run. Flashing
+  boot.img alone then leaves the kernel hunting for partitions that do not
+  exist -> initramfs debug shell. find_partition() gives pmos_root_uuid absolute
+  precedence and does NOT fall back to a path or label. Use patch-bootimg-uuids.py.
+- Cannot change an ext4 UUID with dd: metadata_csum seeds checksums from the
+  UUID, so the superblock stops validating (blkid loses the fs entirely).
+  Writing the original bytes back restores it exactly. ext2 has no such issue.
