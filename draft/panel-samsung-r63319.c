@@ -9,6 +9,7 @@
  */
 
 #include <linux/backlight.h>
+#include <linux/debugfs.h>
 #include <linux/bits.h>
 #include <linux/delay.h>
 #include <linux/gpio/consumer.h>
@@ -256,12 +257,132 @@ static int r63319_on(struct r63319_panel *ctx)
 		return dsi_ctx.accum_err;
 	}
 
+	/*
+	 * Full DCS status readback. The control path demonstrably works while
+	 * the glass stays dark, so the interesting registers are the ones that
+	 * describe the panel's own view of the video it is being sent:
+	 * get_signal_mode (0x0e) and get_diagnostic_result (0x0f, RDDSDR),
+	 * whose bit 7 is register-loading detection and bit 6 functionality
+	 * detection -- i.e. whether the panel thinks its display is working.
+	 */
 	pm = r63319_rd(ctx, MIPI_DCS_GET_POWER_MODE, "power_mode@init");
 	dev_info(dev, "[cold-init] pm=0x%02x sleep_out=%d display_on=%d\n",
 		 pm, pm > 0 && (pm & BIT(4)), pm > 0 && (pm & BIT(2)));
 
+	r63319_rd(ctx, MIPI_DCS_GET_ADDRESS_MODE, "address_mode");
+	r63319_rd(ctx, MIPI_DCS_GET_PIXEL_FORMAT, "pixel_format");
+	r63319_rd(ctx, MIPI_DCS_GET_DISPLAY_MODE, "display_mode");
+	r63319_rd(ctx, MIPI_DCS_GET_SIGNAL_MODE, "signal_mode");
+	r63319_rd(ctx, MIPI_DCS_GET_DIAGNOSTIC_RESULT, "diagnostic");
+
 	return 0;
 }
+
+/*
+ * Re-run the init sequence on a live panel, without a reboot or a reflash.
+ * Iterating on panel bring-up otherwise costs a full build/flash/boot cycle
+ * per hypothesis, which is the single biggest drag on this port.
+ *
+ *   echo 1 > /sys/module/panel_samsung_r63319/parameters/reinit
+ */
+static struct r63319_panel *r63319_dbg_ctx;
+
+static int r63319_reinit_set(const char *val, const struct kernel_param *kp)
+{
+	struct r63319_panel *ctx = r63319_dbg_ctx;
+
+	if (!ctx)
+		return -ENODEV;
+
+	dev_info(&ctx->dsi[0]->dev, "reinit: replaying init sequence\n");
+	r63319_reset(ctx);
+	return r63319_on(ctx);
+}
+
+static const struct kernel_param_ops r63319_reinit_ops = {
+	.set = r63319_reinit_set,
+};
+module_param_cb(reinit, &r63319_reinit_ops, NULL, 0200);
+
+/*
+ * Userspace DCS console.
+ *
+ * Panel bring-up is mostly "what if we sent this sequence instead?", and
+ * mainline exposes no way to send a DSI command from userspace, so every
+ * such question has been costing a kernel build, a flash and a reboot. This
+ * turns that loop into a shell command:
+ *
+ *   echo "w 11"          > /sys/kernel/debug/r63319/cmd   # exit_sleep_mode
+ *   echo "w b0 00"       > /sys/kernel/debug/r63319/cmd   # generic write
+ *   echo "r 0f"          > /sys/kernel/debug/r63319/cmd   # read, result in dmesg
+ *
+ * 'w' picks DCS vs generic the way the DSI spec does, by payload length, so
+ * the bytes written here match the vendor sequence byte for byte.
+ */
+static struct dentry *r63319_debugfs;
+
+static ssize_t r63319_cmd_write(struct file *file, const char __user *ubuf,
+				size_t len, loff_t *ppos)
+{
+	struct r63319_panel *ctx = r63319_dbg_ctx;
+	struct mipi_dsi_multi_context dsi_ctx = { 0 };
+	u8 buf[64];
+	char kbuf[256], *p, *tok;
+	int n = 0, ret;
+
+	if (!ctx)
+		return -ENODEV;
+	if (len >= sizeof(kbuf))
+		return -EINVAL;
+	if (copy_from_user(kbuf, ubuf, len))
+		return -EFAULT;
+	kbuf[len] = '\0';
+
+	p = strim(kbuf);
+	tok = strsep(&p, " \t");
+	if (!tok)
+		return -EINVAL;
+
+	if (*tok == 'r') {
+		unsigned int reg;
+
+		if (!p || kstrtouint(strim(p), 16, &reg))
+			return -EINVAL;
+		r63319_rd(ctx, reg, "debugfs");
+		return len;
+	}
+
+	if (*tok != 'w')
+		return -EINVAL;
+
+	while ((tok = strsep(&p, " \t")) && n < (int)sizeof(buf)) {
+		unsigned int byte;
+
+		if (!*tok)
+			continue;
+		if (kstrtouint(tok, 16, &byte) || byte > 0xff)
+			return -EINVAL;
+		buf[n++] = byte;
+	}
+	if (!n)
+		return -EINVAL;
+
+	dsi_ctx.dsi = ctx->dsi[0];
+	mipi_dsi_dcs_write_buffer_multi(&dsi_ctx, buf, n);
+	ret = dsi_ctx.accum_err;
+
+	dev_info(&ctx->dsi[0]->dev, "debugfs: wrote %d byte%s, cmd 0x%02x, err %d\n",
+		 n, n == 1 ? "" : "s", buf[0], ret);
+
+	return ret ? ret : len;
+}
+
+static const struct file_operations r63319_cmd_fops = {
+	.owner	= THIS_MODULE,
+	.write	= r63319_cmd_write,
+	.open	= simple_open,
+	.llseek	= noop_llseek,
+};
 
 static int r63319_off(struct r63319_panel *ctx)
 {
@@ -443,6 +564,10 @@ static int r63319_probe(struct mipi_dsi_device *dsi)
 	 */
 	drm_panel_add(&ctx->panel);
 
+	r63319_dbg_ctx = ctx;	/* for the reinit module parameter */
+	r63319_debugfs = debugfs_create_dir("r63319", NULL);
+	debugfs_create_file("cmd", 0200, r63319_debugfs, ctx, &r63319_cmd_fops);
+
 	for (i = 0; i < ARRAY_SIZE(ctx->dsi); i++) {
 		if (!ctx->dsi[i])
 			continue;
@@ -473,6 +598,10 @@ static int r63319_probe(struct mipi_dsi_device *dsi)
 
 static void r63319_remove(struct mipi_dsi_device *dsi)
 {
+	debugfs_remove_recursive(r63319_debugfs);
+	r63319_debugfs = NULL;
+	r63319_dbg_ctx = NULL;
+
 	struct r63319_panel *ctx = mipi_dsi_get_drvdata(dsi);
 
 	drm_panel_remove(&ctx->panel);

@@ -862,3 +862,58 @@ holds a steady 60Hz (300 vblanks in 5s, zero errors).
 ### Device UUIDs (needed by patch-bootimg-uuids.py after every install)
   boot  mmcblk0p23  pmOS_boot  ext2  d80ad98a-ee48-4ad9-a9be-f0ffc016c72d
   root  mmcblk0p26  pmOS_root  ext4  5bfdb0f5-d6c3-496b-b030-6f1343612365
+
+### DSI host is correct: the single-link theory is dead
+Read via the dsi_dump module parameter (ioremap of 0xfd922800):
+
+  DSI_CTRL   = 0x1f3  -> ENABLE | VID_MODE_EN | LANE0..3 | CLK_EN
+  ACTIVE_H   -> start 84,  end 884   =  800 columns
+  ACTIVE_V   -> start 12,  end 2572  = 2560 lines
+  TOTAL      -> 1023 x 2583          = htotal 1024, vtotal 2584
+  ACTIVE_HSYNC -> width 20
+
+That is exactly the mode we program, so the host is NOT misconfigured for a
+1600-wide bonded link. The DSI transmitter is enabled, in video mode, on four
+lanes, sending correct 800x2560 video.
+
+TRAP: on DSI 6G, offset 0 is 6G_HW_VERSION and every other register is shifted
+down by 4 (dsi_cfg.h: DSI_6G_REG_SHIFT). Reading the raw dsi.xml.h offsets
+lands one word low and makes an enabled controller look disabled -- DSI_CTRL
+reads back as the version word 0x10010000 (6G v1.1 = msm8974) with its ENABLE
+bit clear. The first dump was misread this way for exactly that reason.
+
+### The full chain is now verified, and the panel is the only unknown left
+  scanout buffer contents  verified (mdp5_fbdump reads the carveout directly)
+  MDP pipe / stride        verified (DMA0, stride 0xc80 = 3200)
+  INTF1 timing engine      verified (FRAME_COUNT and LINE_COUNT at 60Hz)
+  vblank interrupts        verified
+  DSI host config          verified (above)
+  DSI link, both ways      verified (DCS reads return real data)
+  panel power state        reports sleep_out=1 display_on=1
+  backlight                lcd-bl 255/255, bl_power=0
+  glass                    BLACK
+
+Panel DCS readback after a successful cold init (r63319_on returned 0):
+  address_mode 0x00  pixel_format 0x70 (24bpp)  display_mode 0x00
+  signal_mode  0xc0
+  diagnostic   0x00  <-- RDDSDR bit7 (register loading) and bit6
+                         (functionality) BOTH CLEAR. If this panel implements
+                         RDDSDR honestly it is reporting that its registers did
+                         not load and it does not consider itself functional.
+
+### Stop rebuilding the kernel to test panel sequences
+Panel bring-up is mostly "what if we sent this sequence instead?", and mainline
+has no userspace DSI command API, so every such question was costing a build,
+a flash and a reboot. The driver now carries a DCS console:
+
+  echo "w 11"     > /sys/kernel/debug/r63319/cmd   # exit_sleep_mode
+  echo "w b0 00"  > /sys/kernel/debug/r63319/cmd   # generic write
+  echo "r 0f"     > /sys/kernel/debug/r63319/cmd   # read, result to dmesg
+
+plus the reinit parameter (replay the whole init sequence on a live panel) and
+the writable inherit_splash. After this build, panel experiments are shell
+commands over ssh.
+
+Also note: inherit_splash can be flipped WITHOUT a rebuild by patching the boot
+image cmdline (panel_samsung_r63319.inherit_splash=1), since it is a module
+parameter. Only the driver's own code needs a build.
