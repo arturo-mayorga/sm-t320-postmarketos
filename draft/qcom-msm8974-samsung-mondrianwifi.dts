@@ -289,6 +289,10 @@
 	 * mode (~320 MHz pixel / ~1.92 GHz per lane), and the PLL rejects it:
 	 *   msm_dsi_host_power_on: failed to enable link clocks. ret=-22
 	 */
+	qcom,dual-dsi-mode;
+	qcom,master-dsi;
+	qcom,sync-dual-dsi;
+
 	vdd-supply   = <&pm8941_l22>;
 	vddio-supply = <&pm8941_l12>;
 	vdda-supply  = <&pm8941_l2>;
@@ -319,6 +323,13 @@
 					remote-endpoint = <&mdss_dsi0_out>;
 				};
 			};
+
+			port@1 {
+				reg = <1>;
+				panel_in1: endpoint {
+					remote-endpoint = <&mdss_dsi1_out>;
+				};
+			};
 		};
 	};
 };
@@ -334,11 +345,28 @@
 };
 
 &mdss_dsi1 {
-	status = "disabled";
+	status = "okay";
+
+	qcom,dual-dsi-mode;
+	qcom,sync-dual-dsi;
+
+	/* DSI1 is the slave link, so it runs off DSI0's PLL */
+	assigned-clock-parents = <&mdss_dsi0_phy DSI_BYTE_PLL_CLK>,
+				 <&mdss_dsi0_phy DSI_PIXEL_PLL_CLK>;
+
+	vdd-supply   = <&pm8941_l22>;
+	vddio-supply = <&pm8941_l12>;
+	vdda-supply  = <&pm8941_l2>;
+};
+
+&mdss_dsi1_out {
+	remote-endpoint = <&panel_in1>;
+	data-lanes = <0 1 2 3>;
 };
 
 &mdss_dsi1_phy {
-	status = "disabled";
+	status = "okay";
+	vddio-supply = <&pm8941_l12>;
 };
 
 /*
