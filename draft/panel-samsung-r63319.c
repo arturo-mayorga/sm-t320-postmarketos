@@ -408,9 +408,7 @@ static int r63319_off(struct r63319_panel *ctx)
 {
 	struct mipi_dsi_multi_context dsi_ctx = { 0 };
 
-	r63319_dual(mipi_dsi_dcs_set_display_off_multi, &dsi_ctx,
-		    ctx->dsi[0], ctx->dsi[1]);
-	mipi_dsi_msleep(&dsi_ctx, 20);
+	/* display_off is .disable's job now; this only has to sleep the panel */
 	r63319_dual(mipi_dsi_dcs_enter_sleep_mode_multi, &dsi_ctx,
 		    ctx->dsi[0], ctx->dsi[1]);
 	mipi_dsi_msleep(&dsi_ctx, 50);
@@ -495,8 +493,64 @@ static int r63319_get_modes(struct drm_panel *panel, struct drm_connector *conne
 			ctx->dsi[1] ? &r63319_mode_dual : &r63319_mode_single);
 }
 
+/*
+ * .enable runs after the DSI host is streaming video; .prepare runs before it.
+ *
+ * This driver used to do everything in .prepare, including set_display_on, so
+ * the panel was told to light up while the link was still dark. It accepts
+ * that -- every command returns accum_err 0 and power_mode reads back 0x1c,
+ * sleep_out=1 display_on=1, exactly as though it had worked -- and then
+ * quietly drops back to sleep on its own: by the time userspace is up,
+ * power_mode reads 0x0c with the sleep_out bit clear and the screen is black
+ * with only the backlight lit.
+ *
+ * It is not .unprepare doing it. DCS reads still succeed at that point, which
+ * they could not if .unprepare had run, since it drops the regulators and
+ * asserts reset. The panel puts itself to sleep because nothing ever tells it
+ * to wake once there is actually video to display.
+ *
+ * So the sequence is split the way the DSI panel API intends: .prepare powers
+ * the panel and loads the vendor register set, and .enable asserts sleep_out
+ * and display_on once the stream is live.
+ */
+static int r63319_enable(struct drm_panel *panel)
+{
+	struct r63319_panel *ctx = to_r63319(panel);
+	struct mipi_dsi_multi_context dsi_ctx = { 0 };
+	struct device *dev = &ctx->dsi[0]->dev;
+	int pm;
+
+	r63319_dual(mipi_dsi_dcs_exit_sleep_mode_multi, &dsi_ctx,
+		    ctx->dsi[0], ctx->dsi[1]);
+	mipi_dsi_msleep(&dsi_ctx, 120);
+	r63319_dual(mipi_dsi_dcs_set_display_on_multi, &dsi_ctx,
+		    ctx->dsi[0], ctx->dsi[1]);
+	mipi_dsi_msleep(&dsi_ctx, 20);
+
+	pm = r63319_rd(ctx, MIPI_DCS_GET_POWER_MODE, "power_mode@enable");
+	dev_info(dev, "[enable] pm=0x%02x sleep_out=%d display_on=%d err=%d\n",
+		 pm, pm > 0 && (pm & BIT(4)), pm > 0 && (pm & BIT(2)),
+		 dsi_ctx.accum_err);
+
+	return dsi_ctx.accum_err;
+}
+
+static int r63319_disable(struct drm_panel *panel)
+{
+	struct r63319_panel *ctx = to_r63319(panel);
+	struct mipi_dsi_multi_context dsi_ctx = { 0 };
+
+	r63319_dual(mipi_dsi_dcs_set_display_off_multi, &dsi_ctx,
+		    ctx->dsi[0], ctx->dsi[1]);
+	mipi_dsi_msleep(&dsi_ctx, 20);
+
+	return dsi_ctx.accum_err;
+}
+
 static const struct drm_panel_funcs r63319_panel_funcs = {
 	.prepare	= r63319_prepare,
+	.enable		= r63319_enable,
+	.disable	= r63319_disable,
 	.unprepare	= r63319_unprepare,
 	.get_modes	= r63319_get_modes,
 };
