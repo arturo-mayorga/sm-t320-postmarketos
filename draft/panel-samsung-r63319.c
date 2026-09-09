@@ -64,7 +64,16 @@
  * and leaves it lit and scanning. Taking it over rather than re-initialising
  * it avoids a reset we have never managed to drive the panel back out of.
  */
-static bool inherit_splash = true;
+/*
+ * Default changed to false: adopting the bootloader's panel looked attractive
+ * (it is already lit, and cont-splash is set downstream) but it is a trap. The
+ * MDP stops the timing engine on every DPMS blank, and this panel does not
+ * survive the video stream going away -- it comes back with power_mode still
+ * reporting 0x1c (sleep_out=1, display_on=1) but nothing on screen, and with
+ * inherit_splash the driver never sends the commands that would recover it.
+ * Cold init reproduces the vendor sequence in full and returns accum_err=0.
+ */
+static bool inherit_splash = false;
 module_param(inherit_splash, bool, 0644);
 MODULE_PARM_DESC(inherit_splash, "Adopt the bootloader-initialised panel instead of resetting it");
 
@@ -190,16 +199,6 @@ static int r63319_rd(struct r63319_panel *ctx, u8 cmd, const char *label)
 	return val;
 }
 
-static void r63319_dump(struct r63319_panel *ctx, const char *stage)
-{
-	struct device *dev = &ctx->dsi[0]->dev;
-	int pm = r63319_rd(ctx, MIPI_DCS_GET_POWER_MODE, "power_mode");
-
-	dev_info(dev, "[%s] sleep_out=%d display_on=%d booster=%d\n", stage,
-		 pm >= 0 && (pm & BIT(4)), pm >= 0 && (pm & BIT(2)),
-		 pm >= 0 && (pm & BIT(6)));
-}
-
 /*
  * Sequence transcribed from the downstream Samsung MDSS device tree,
  * qcom,mdss-dsi-on-command in dsi_panel_samsung_2560p_video_R63319.dtsi.
@@ -234,71 +233,32 @@ static void r63319_send_init(struct r63319_panel *ctx,
 }
 
 /*
- * Staged bring-up diagnostic.
+ * Cold init: the panel is ours from reset, so just replay the vendor sequence.
  *
- * Established so far: the panel answers DCS reads (so its logic is powered and
- * the link works both ways), every write returns accum_err=0, both reset and
- * enable GPIOs are in the right state, and all three rails are up -- yet
- * power_mode never moves off 0x08 (sleep in, display off, booster off) whether
- * the sequence is sent in LP or HS.
- *
- * The one link never verified against a source is the init byte sequence
- * itself. So rather than replay it, walk the panel up one command at a time
- * and report where it stops responding.
+ * This was a staged A-F walk that probed the panel one command at a time. It
+ * existed because every DCS read came back 0x00 and the init appeared to have
+ * no effect -- which turned out to be our own doing: reset is GPIO_ACTIVE_LOW
+ * and was requested GPIOD_OUT_HIGH, so the driver held the panel in reset from
+ * probe onward. With GPIOD_ASIS the reads are truthful and the premise of the
+ * walk is gone. It is dropped because a dozen reads and writes against a panel
+ * that is not answering spend long enough in DCS timeouts during probe to be a
+ * plausible cause of the boot loop seen the one time cold init was tried.
  */
 static int r63319_on(struct r63319_panel *ctx)
 {
 	struct mipi_dsi_multi_context dsi_ctx = { 0 };
-	struct mipi_dsi_device *d0 = ctx->dsi[0], *d1 = ctx->dsi[1];
-	struct device *dev = &d0->dev;
-	int before, after, pm;
+	struct device *dev = &ctx->dsi[0]->dev;
+	int pm;
 
-	/* A: baseline, straight after reset, before we have written anything */
-	dev_info(dev, "=== A: baseline after reset ===\n");
-	r63319_dump(ctx, "A");
-	before = r63319_rd(ctx, 0x52, "brightness");
-	r63319_rd(ctx, MIPI_DCS_GET_PIXEL_FORMAT, "pixel_format");
-
-	/*
-	 * B: does ANY write stick? Write display brightness, read it back.
-	 * This separates "panel ignores our writes" from "panel refuses this
-	 * particular sequence" -- the two are indistinguishable from accum_err.
-	 */
-	dev_info(dev, "=== B: write-effectiveness probe ===\n");
-	r63319_dcs_seq(&dsi_ctx, d0, d1, MIPI_DCS_SET_DISPLAY_BRIGHTNESS, 0xa5);
-	mipi_dsi_msleep(&dsi_ctx, 10);
-	after = r63319_rd(ctx, 0x52, "brightness");
-	dev_info(dev, "[B] brightness before=0x%02x after write 0xa5 -> 0x%02x : writes %s\n",
-		 before, after, after == 0xa5 ? "DO stick" : "do NOT stick");
-
-	/* C: the minimal wake -- sleep out on its own, nothing else */
-	dev_info(dev, "=== C: bare exit_sleep_mode ===\n");
-	r63319_dual(mipi_dsi_dcs_exit_sleep_mode_multi, &dsi_ctx, d0, d1);
-	mipi_dsi_msleep(&dsi_ctx, 120);
-	r63319_dump(ctx, "C");
-
-	/* D: soft reset first, with the full 120ms the DCS spec wants, then retry */
-	pm = r63319_rd(ctx, MIPI_DCS_GET_POWER_MODE, "power_mode");
-	if (!(pm > 0 && (pm & BIT(4)))) {
-		dev_info(dev, "=== D: soft_reset + 120ms, then exit_sleep ===\n");
-		r63319_dual(mipi_dsi_dcs_soft_reset_multi, &dsi_ctx, d0, d1);
-		mipi_dsi_msleep(&dsi_ctx, 120);
-		r63319_dual(mipi_dsi_dcs_exit_sleep_mode_multi, &dsi_ctx, d0, d1);
-		mipi_dsi_msleep(&dsi_ctx, 120);
-		r63319_dump(ctx, "D");
+	r63319_send_init(ctx, &dsi_ctx);
+	if (dsi_ctx.accum_err) {
+		dev_err(dev, "init sequence failed: %d\n", dsi_ctx.accum_err);
+		return dsi_ctx.accum_err;
 	}
 
-	/* E: display on regardless, so we can see whether that bit moves */
-	dev_info(dev, "=== E: set_display_on ===\n");
-	r63319_dual(mipi_dsi_dcs_set_display_on_multi, &dsi_ctx, d0, d1);
-	mipi_dsi_msleep(&dsi_ctx, 20);
-	r63319_dump(ctx, "E");
-
-	/* F: only now the full vendor sequence, to see if it changes anything */
-	dev_info(dev, "=== F: full vendor init sequence ===\n");
-	r63319_send_init(ctx, &dsi_ctx);
-	r63319_dump(ctx, "F");
-	dev_info(dev, "accum_err=%d\n", dsi_ctx.accum_err);
+	pm = r63319_rd(ctx, MIPI_DCS_GET_POWER_MODE, "power_mode@init");
+	dev_info(dev, "[cold-init] pm=0x%02x sleep_out=%d display_on=%d\n",
+		 pm, pm > 0 && (pm & BIT(4)), pm > 0 && (pm & BIT(2)));
 
 	return 0;
 }

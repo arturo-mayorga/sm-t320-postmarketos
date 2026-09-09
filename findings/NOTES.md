@@ -786,3 +786,79 @@ readbacks before concluding cold init is impossible.
 - Cannot change an ext4 UUID with dd: metadata_csum seeds checksums from the
   UUID, so the superblock stops validating (blkid loses the fs entirely).
   Writing the original bytes back restores it exactly. ext2 has no such issue.
+
+################################################################################
+## SESSION 4: THERE WAS NO VSYNC BLOCKER. TWO MEASUREMENT ARTIFACTS.
+################################################################################
+
+### Retract the whole "MDP5 vsync IRQ never fires" diagnosis
+Vblank interrupts work, at a steady 60Hz, and always did. The evidence that
+said otherwise was produced by two independent broken measurements:
+
+  1. `modetest -M msm -s ... -v` EXITS AFTER ~1 SECOND when stdin is not a
+     terminal. Over ssh with no tty it hits EOF and quits, so every "over 8
+     seconds" count was really counting an idle machine. Hold stdin open
+     (`sleep 30 | modetest ...`) and it page-flips at a solid 60.00Hz.
+  2. IRQ NUMBERS ARE NOT STABLE ACROSS BOOTS. msm_mdss was IRQ 55 on one boot
+     and IRQ 57 on the next, where 55 had become mmc0. Half the "vsync is dead"
+     readings were eMMC traffic. Always resolve the line by name:
+       awk '/msm_mdss/ && /msm$/ {gsub(":","",$1); print $1; exit}' /proc/interrupts
+     Measured properly: 350 interrupts in 6s, ~58Hz.
+
+The mdp5_dump instrumentation added this session confirmed the hardware:
+INTR_STATUS=08000100 with bit 27 (INTF1_VSYNC) latched, and in the handler
+`en=5d000000 raw=08000100 handled=08000000` -- enabled, raised, and handled.
+
+This is the same failure shape as the 0x00 DCS reads and the renderD128 node:
+an instrument that reports silence, mistaken for a finding. Check the
+instrument before believing the measurement.
+
+### fbcon blanking is a trap for compositors
+`/sys/kernel/debug/dri/0/state` showing `crtc: enable=1 active=0` means fbcon
+blanked the console on its idle timer. Start a compositor in that state and
+EVERY commit returns EBUSY forever; aquamarine spins modeset -> flip -> EBUSY.
+Unblank first (`echo 0 > /sys/class/graphics/fb0/blank`) and it commits fine.
+consoleblank=0 is now on the kernel cmdline so this cannot recur.
+
+### COLD INIT WORKS, AND THE PANEL REQUIRES IT
+inherit_splash=0 plus a CRTC off/on cycle runs the vendor sequence with
+accum_err=0 and `r63319_on() returned 0`, and the picture comes back. It does
+not boot loop now that the staged A-F walk is gone.
+
+Adopting the bootloader's panel is a TRAP. The MDP stops the timing engine on
+every DPMS blank, and this panel does not survive losing the video stream: it
+comes back reporting power_mode=0x1c (sleep_out=1, display_on=1) as if healthy
+while showing nothing, and with inherit_splash the driver never sends anything
+that could recover it. The module default is now false.
+The parameter is writable at runtime, which is how this was proven without a
+reflash: echo 0 > /sys/module/panel_samsung_r63319/parameters/inherit_splash
+
+### Hyprland: vfr=true deadlocks it
+With `misc:vfr = true` Hyprland stops committing when idle, vblank is disabled,
+and the next commit loses its page-flip event. Aquamarine has no timeout, so it
+hangs forever on "Cannot commit when a page-flip is awaiting". `vfr = false`
+holds a steady 60Hz (300 vblanks in 5s, zero errors).
+
+### Still open
+  - Screen reported black while Hyprland runs at 60Hz with complete
+    framebuffers (GL_FRAMEBUFFER_COMPLETE = 36053) and windows mapping.
+    Cannot be resolved from userspace: grim hangs on screencopy, and /dev/mem
+    cannot reach the scanout because the VRAM carveout is above lowmem and
+    ARM32's valid_phys_addr_range() rejects it. Hence mdp5_fbdump below.
+  - Hyprland SIGABRTs when a window closes, during "making a snapshot".
+  - waybar needs a session bus (dbus-run-session).
+  - The GPU is healthy: last-fence == retired-fence, rbbm-status 0x1.
+
+### Instrumentation now in the kernel patch (mdp5_irq.c)
+  echo 1 > /sys/module/msm/parameters/mdp5_dump
+      INTR_EN/INTR_STATUS plus INTF1 timing_en/frame/line, sampled 8 times
+      across ~24ms without clearing, so a latched vsync cannot be missed.
+  echo 1 > /sys/module/msm/parameters/mdp5_fbdump
+      Reads DMA0's SRC0_ADDR scanout pointer, memremaps the carveout (ordinary
+      reserved RAM, so this works where /dev/mem cannot) and samples 32 pixels
+      down the framebuffer, reporting how many are non-black. This answers
+      "dark panel or black buffer" directly.
+
+### Device UUIDs (needed by patch-bootimg-uuids.py after every install)
+  boot  mmcblk0p23  pmOS_boot  ext2  d80ad98a-ee48-4ad9-a9be-f0ffc016c72d
+  root  mmcblk0p26  pmOS_root  ext4  5bfdb0f5-d6c3-496b-b030-6f1343612365
