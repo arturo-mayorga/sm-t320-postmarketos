@@ -924,7 +924,8 @@ static int mdp5_plane_mode_set(struct drm_plane *plane,
 		 * at the seam, so its destination x is relative to that.
 		 */
 		unsigned int l_crtc_w = mixer_width - crtc_x;
-		uint32_t l_src_w = (uint64_t)src_w * l_crtc_w / crtc_w;
+		/* <= 4096 * 2048, fits u32: no 64-bit division on ARM32 */
+		uint32_t l_src_w = src_w * l_crtc_w / crtc_w;
 
 		r_crtc_x = 0;
 		r_crtc_w = crtc_w - l_crtc_w;
