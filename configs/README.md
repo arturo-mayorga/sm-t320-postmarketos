@@ -19,3 +19,20 @@ Hyprland notes that matter on this hardware:
                      with vfr=true a busy terminal flips at a clean 60Hz.
   waybar: no pulseaudio/mpris/sway modules - pulseaudio module aborts without
           a pipewire-pulse server.
+
+## System bits added for the radios (also on the tablet only)
+  /etc/udev/rules.d/90-bt-addr.rules
+      ACTION=="add", SUBSYSTEM=="bluetooth", KERNEL=="hci0", RUN+="/usr/bin/btmgmt -i hci0 public-addr 00:73:E0:26:9D:CC"
+      (until the DT local-bd-address lands; btqcomsmd registers hci0 unconfigured)
+  /etc/conf.d/wpa_supplicant   wpa_supplicant_args="-u -s"   (dbus mode, for NetworkManager)
+  /etc/ssh/sshd_config         AllowTcpForwarding yes        (pmOS default is no; needed for
+                                                              the apk proxy tunnel)
+  rc-update add: bluetooth wpa_supplicant networkmanager local
+  packages added: bluez bluez-openrc bluez-btmgmt wpa_supplicant wpa_supplicant-openrc
+                  networkmanager-wifi networkmanager-tui iw wvkbd
+
+## Package installs without pmbootstrap sideload
+The tablet has no internet. scratchpad proxy.py (a 40-line CONNECT proxy) on
+the laptop, then
+  ssh -R 3129:127.0.0.1:3128 tab 'sudo sh -c "export http_proxy=http://127.0.0.1:3129 https_proxy=$http_proxy; apk add ..."'
+No sudo needed on the laptop.

@@ -284,6 +284,15 @@
 
 		wcnss {
 			status = "okay";
+
+			/* addresses from the efs partition: bluetooth/bt_addr, wifi/.mac.info */
+			bluetooth {
+				local-bd-address = [cc 9d 26 e0 73 00];
+			};
+
+			wifi {
+				local-mac-address = [00 73 e0 26 9d cd];
+			};
 		};
 	};
 };

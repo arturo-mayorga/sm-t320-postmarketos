@@ -980,3 +980,29 @@ Implemented (pkgrel 27/28, behind msm.mdp5_split_dsi=1):
   mdp5_plane.c. On ARM32 use div_u64 or keep it in u32. Check with
   `llvm-nm obj.o | grep aeabi` - only __aeabi_uidiv/unwind are normal.
 - set-bootimg-cmdline.py: module params flip in the boot image header.
+
+### Hyprland on the full panel (same day, later)
+- VRAM: 128m ran out (MSM_GEM_NEW -> ENOSPC) at 1600x2560; cma=512M msm.vram=384m.
+- vfr=false collides with the pending flip every other frame (153 EBUSY / 5s);
+  vfr=true is clean: idle 0 irqs, busy terminal 60 flips/s, 0 EBUSY.
+- Touch: Hyprland's auto transform never applied (device bound before the
+  monitor exists). Explicit device { transform = 3 } fixed it; verified by
+  correlating evdev coordinates with focus changes on tiled windows.
+- One-line `blur { enabled = false }` is a config error in 0.54; use blocks.
+- wvkbd-mobintl --hidden, toggled by SIGRTMIN (Super+K / waybar button).
+
+### WCNSS (Wi-Fi + Bluetooth)
+- Signed firmware was still on apnhlos (image/wcnss.*): copied to
+  /lib/firmware/qcom/msm8974/mondrianwifi and firmware/ in the repo.
+- DT: &pronto enabled like bacon (supplies, iris, wcnss pins, smd-edge).
+  Remoteproc boots the image, WCNSS Version 1.5 1.2, hci0 + wlan0 appear.
+- Bluetooth: btqcomsmd registers hci0 unconfigured (no BD address). Address
+  from efs bluetooth/bt_addr = 00:73:E0:26:9D:CC; btmgmt public-addr, then
+  bluetoothd sees it. DT local-bd-address added for the next flash.
+- Wi-Fi OPEN: wcn36xx loads (firmware API 1.5.1.2) but every SMD request
+  times out (hal_update_channel_list, hal_start_scan_offload). NV file is
+  LineageOS's mondrianwifi WCNSS_qcom_wlan_nv.bin. Suspects: NV format
+  (Samsung NV blobs sometimes carry a header), or the wcn36xx/firmware 1.5
+  pairing needing the wcnss "nv download" path. Not yet investigated.
+- pmOS sshd ships AllowTcpForwarding no; sideload died on wvkbd; apk over a
+  reverse-tunnelled CONNECT proxy (apk-proxy.py) works without laptop sudo.

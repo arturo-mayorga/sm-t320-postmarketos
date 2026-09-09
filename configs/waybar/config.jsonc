@@ -1,5 +1,8 @@
 { "layer": "top", "position": "top", "height": 28,
   "modules-left": ["hyprland/workspaces"], "modules-center": ["clock"],
-  "modules-right": ["cpu", "memory", "battery"],
+  "modules-right": ["custom/kbd", "network", "bluetooth", "cpu", "memory", "battery"],
+  "custom/kbd": { "format": " ⌨ ", "on-click": "pkill -SIGRTMIN wvkbd-mobintl", "tooltip": false },
+  "network": { "format-wifi": "{essid} {signalStrength}%", "format-disconnected": "no wifi", "on-click": "alacritty -e nmtui" },
+  "bluetooth": { "format": "bt {status}", "format-connected": "bt {device_alias}", "on-click": "alacritty -e bluetoothctl" },
   "clock": { "format": "{:%H:%M}" }, "cpu": { "format": "cpu {usage}%" },
   "memory": { "format": "mem {}%" }, "battery": { "format": "bat {capacity}%" } }
