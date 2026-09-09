@@ -159,17 +159,31 @@ static const struct drm_display_mode r63319_mode_dual = {
  *   lane rate = 158.761 MHz * 24 bpp / 4 lanes = 953 Mbps, inside 28nm HPM
  *   MDP core clock is far below the 320 MHz msm8x74v2 cap
  */
+/*
+ * Exactly the downstream timing, which the dual mode above cannot afford:
+ *
+ *   h-front-porch 150  h-pulse 20  h-back-porch 64   -> htotal 1034
+ *   v-front-porch  12  v-pulse  4  v-back-porch  8   -> vtotal 2584
+ *   1034 * 2584 * 60 = 160.311 MHz
+ *
+ * The 140-pixel front porch this used to carry was copied from the dual mode,
+ * where it exists only to keep the pixel clock under the MDP's flat 320 MHz
+ * ceiling. Driving a single link needs half that, so there is no reason to
+ * deviate from the panel's own numbers -- and "porch length is not
+ * panel-critical", asserted there without evidence, is precisely what a panel
+ * that answers DCS perfectly while showing nothing calls into question.
+ */
 static const struct drm_display_mode r63319_mode_single = {
-	.clock		= 158761,
+	.clock		= 160311,
 	.hdisplay	= 800,
-	.hsync_start	= 940,	/* 800 + 140 front porch */
-	.hsync_end	= 960,	/* +      20  pulse width */
-	.htotal		= 1024,	/* +      64  back porch  */
+	.hsync_start	= 950,	/* 800 + 150 front porch */
+	.hsync_end	= 970,	/* +      20  pulse width */
+	.htotal		= 1034,	/* +      64  back porch  */
 	.vdisplay	= 2560,
-	.vsync_start	= 2572,
-	.vsync_end	= 2576,
-	.vtotal		= 2584,
-	.width_mm	= 114,
+	.vsync_start	= 2572,	/* 2560 + 12 front porch */
+	.vsync_end	= 2576,	/* +       4 pulse width */
+	.vtotal		= 2584,	/* +       8 back porch  */
+	.width_mm	= 114,	/* 8.4" diagonal, 16:10 */
 	.height_mm	= 182,
 };
 
