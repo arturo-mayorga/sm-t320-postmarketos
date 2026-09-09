@@ -13,6 +13,7 @@ seatd,dbus,polkit,\
 mesa-dri-gallium,mesa-egl,mesa-gles,mesa-gbm,\
 font-jetbrains-mono-nerd,font-dejavu,\
 networkmanager,networkmanager-cli,openssh,\
+wpa_supplicant,wpa_supplicant-openrc,bluez,bluez-openrc,\
 htop,nano,git"
 
 pmbootstrap shutdown

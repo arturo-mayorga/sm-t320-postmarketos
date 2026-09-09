@@ -241,6 +241,50 @@
 			regulator-max-microvolt = <3075000>;
 			regulator-boot-on;
 		};
+
+		/* WCNSS (Wi-Fi + Bluetooth) RF supplies, per every other PM8941 board */
+		pm8941_l11: l11 {
+			regulator-min-microvolt = <1300000>;
+			regulator-max-microvolt = <1300000>;
+		};
+
+		pm8941_l19: l19 {
+			regulator-min-microvolt = <2900000>;
+			regulator-max-microvolt = <3350000>;
+		};
+	};
+};
+
+/*
+ * WCNSS: Wi-Fi and Bluetooth live on the wcn3680 behind the pronto remoteproc.
+ * The signed firmware is the device's own, from the apnhlos partition
+ * (image/wcnss.mdt + .b0x), installed under /lib/firmware/qcom/msm8974/mondrianwifi.
+ */
+&pronto {
+	vddmx-supply = <&pm8841_s1>;
+	vddpx-supply = <&pm8941_s3>;
+
+	pinctrl-names = "default";
+	pinctrl-0 = <&wcnss_pin_a>;
+
+	firmware-name = "qcom/msm8974/mondrianwifi/wcnss.mdt";
+
+	status = "okay";
+
+	iris {
+		vddxo-supply = <&pm8941_l6>;
+		vddrfa-supply = <&pm8941_l11>;
+		vddpa-supply = <&pm8941_l19>;
+		vdddig-supply = <&pm8941_s3>;
+	};
+
+	smd-edge {
+		qcom,remote-pid = <4>;
+		label = "pronto";
+
+		wcnss {
+			status = "okay";
+		};
 	};
 };
 
@@ -259,6 +303,22 @@
 };
 
 &tlmm {
+	wcnss_pin_a: wcnss-pin-active-state {
+		wlan-pins {
+			pins = "gpio36", "gpio37", "gpio38", "gpio39", "gpio40";
+			function = "wlan";
+			drive-strength = <6>;
+			bias-pull-down;
+		};
+
+		bt-pins {
+			pins = "gpio35", "gpio43", "gpio44";
+			function = "bt";
+			drive-strength = <2>;
+			bias-pull-down;
+		};
+	};
+
 	sdc1_on: sdc1-on-state {
 		clk-pins {
 			pins = "sdc1_clk";
