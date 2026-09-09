@@ -210,10 +210,14 @@ static int r63319_rd(struct r63319_panel *ctx, u8 cmd, const char *label)
 	ctx->dsi[0]->mode_flags = saved;
 
 	if (ret < 0) {
-		dev_err(dev, "  rd %s (0x%02x): FAILED %d\n", label, cmd, ret);
+		if (label)
+			dev_err(dev, "  rd %s (0x%02x): FAILED %d\n",
+				label, cmd, ret);
 		return ret;
 	}
-	dev_info(dev, "  rd %s (0x%02x) = 0x%02x\n", label, cmd, val);
+	/* a NULL label means a poll, which should not spam the log */
+	if (label)
+		dev_info(dev, "  rd %s (0x%02x) = 0x%02x\n", label, cmd, val);
 	return val;
 }
 
@@ -518,11 +522,29 @@ static int r63319_enable(struct drm_panel *panel)
 	struct r63319_panel *ctx = to_r63319(panel);
 	struct mipi_dsi_multi_context dsi_ctx = { 0 };
 	struct device *dev = &ctx->dsi[0]->dev;
-	int pm;
+	int pm, i;
 
 	r63319_dual(mipi_dsi_dcs_exit_sleep_mode_multi, &dsi_ctx,
 		    ctx->dsi[0], ctx->dsi[1]);
-	mipi_dsi_msleep(&dsi_ctx, 120);
+
+	/*
+	 * The DCS spec's 120ms after sleep_out is a minimum, and this panel
+	 * needs about 200ms: polling power_mode straight after the command
+	 * reads 0x0c, 0x0c, 0x0c and only then 0x1c. Waiting the bare 120ms
+	 * meant display_on was asserted into a panel that was still asleep,
+	 * which it accepts without complaint -- display_on latches, sleep_out
+	 * does not, and the result is a black screen with the backlight lit.
+	 * Poll instead of guessing a larger constant.
+	 */
+	for (i = 0; i < 12; i++) {
+		mipi_dsi_msleep(&dsi_ctx, 40);
+		pm = r63319_rd(ctx, MIPI_DCS_GET_POWER_MODE, NULL);
+		if (pm > 0 && (pm & BIT(4)))
+			break;
+	}
+	if (i == 12)
+		dev_warn(dev, "sleep_out did not latch within 480ms\n");
+
 	r63319_dual(mipi_dsi_dcs_set_display_on_multi, &dsi_ctx,
 		    ctx->dsi[0], ctx->dsi[1]);
 	mipi_dsi_msleep(&dsi_ctx, 20);
