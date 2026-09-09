@@ -917,3 +917,66 @@ commands over ssh.
 Also note: inherit_splash can be flipped WITHOUT a rebuild by patching the boot
 image cmdline (panel_samsung_r63319.inherit_splash=1), since it is a module
 parameter. Only the driver's own code needs a build.
+
+## SESSION 5: PANEL SELF-STARTS, BONDED DSI PROVEN, MDP5 SPLIT DISPLAY WRITTEN
+
+### The panel-sleep root cause (closed)
+`.enable` sent exit_sleep_mode, waited the DCS-spec 120 ms, then asserted
+display_on into a panel that had not latched sleep_out yet. Measured with the
+DCS console: after `w 11` power_mode reads 0x0c, 0x0c, 0x0c, 0x1c - about
+200 ms. r26 polls for bit 4 (up to 480 ms) instead of guessing a constant.
+Verified on the bonded boot: `[enable] pm=0x1c sleep_out=1 display_on=1` with
+no manual wake.
+
+### Bonded DSI boots; the earlier boot loop was my split hack, not the DT
+Swapping only the DTB (repack-bootimg-dtb.py) into the r26 image:
+- both DSI hosts bind, DRM exposes one 1600x2560 connector, no boot loop.
+- with qcom,sync-dual-dsi every panel read returned "Invalid response cmd"
+  and zeros. dsi_manager.c makes DSI1 the command trigger in sync mode:
+  msm_dsi_manager_cmd_xfer_trigger() returns false for DSI_0, so a read
+  issued on DSI0 never has its DMA fired and the host reads an empty RDBK.
+  Writes to DSI0 are dropped and writes to DSI1 fire both links.
+- without the sync property each host triggers its own commands; reads on
+  DSI0 work, init goes out on both links in sequence, panel reports
+  pixel_format 0x70 / signal_mode 0xc0 exactly as single-link. The bonded
+  DT now ships without qcom,sync-dual-dsi.
+- what remained: dsi_err_worker status=4 (DSI_ERR_STATE_FIFO) storm and
+  "wait for video done timed out" - INTF1 pushing 1600-px lines into an
+  800-px DSI stream. That is the split-display job, not a DSI fault.
+
+### Mainline MDP5 has no split display for v1.x
+mdp5_ctl.c's bonded-DSI code is the single-flush scheme, gated on hw rev 3+
+(msm8996). On MDP5 v1.2 it is dead. Downstream (mdss_mdp_ctl.c,
+mdss_mdp_ctl_split_display_setup) does: two layer mixers, each with its own
+CTL and INTF, SPLIT_DPL_LOWER=INTF2_TG_SYNC, UPPER=0, EN=1, and only INTF1's
+timing engine ever written (mdss_mdp_intf_video.c enables TG for ctl only;
+sctl's ctx->timegen_en stays false). Mainline's mixer-pair path instead
+packs both mixers into one INTF (CTL_OP PACK_3D) via source split, which
+this SoC lacks (no MDP_CAP_SRC_SPLIT).
+
+Implemented (pkgrel 27/28, behind msm.mdp5_split_dsi=1):
+- mdp5_kms.h: pipeline gains r_intf / r_ctl; split == r_intf != NULL.
+- mdp5_encoder.c: master (INTF1) borrows the slave (INTF2) encoder's INTF
+  and CTL in atomic_check; halves horizontal timing; programs both INTFs;
+  arms SPLIT_DPL before TG_EN on INTF1 only; commits both CTLs.
+- mdp5_crtc.c: split forces the mixer pair; planes staged per side; flush
+  masks split between the two CTLs; no SPLIT_LEFT_RIGHT bit; INTF2 underrun
+  in the err mask; set_pipeline programs the right CTL (CTL_OP INTF_NUM=2,
+  INTF_SEL INTF2=DSI).
+- mdp5_plane.c: a plane across the seam gets a second hwpipe; cut at the
+  seam (not the middle); right pipe's dst x is seam-relative; a plane
+  wholly right of the seam is one pipe on the right mixer.
+- mdp5_ctl.c: no PACK_3D in split; right mixer's LAYER regs via r_ctl.
+- mdp5_cfg.c: LM0 gets MDP_LM_CAP_PAIR on msm8x74 (LM1 must NOT - the
+  assign loop returns -EINVAL for a pairable LM with no right partner).
+- panel dual mode is exactly 2x the proven single-link timing (hfp 150).
+
+### Build hygiene that finally paid for itself
+- draft/tree + draft/pristine: in-tree kernel edits are real files;
+  regen-patch.py diffs them. No more hand-maintained hunks.
+- k616 tree is `make LLVM=1 ARCH=arm prepare`d with the host clang, so a
+  touched object compiles locally in seconds. It does NOT catch link
+  errors: r27 died in vmlinux on __aeabi_uldivmod from a (u64) division in
+  mdp5_plane.c. On ARM32 use div_u64 or keep it in u32. Check with
+  `llvm-nm obj.o | grep aeabi` - only __aeabi_uidiv/unwind are normal.
+- set-bootimg-cmdline.py: module params flip in the boot image header.
