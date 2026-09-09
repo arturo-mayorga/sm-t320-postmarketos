@@ -94,9 +94,6 @@ int mdp5_pipe_assign(struct drm_atomic_state *s, struct drm_plane *plane,
 	if (mdp5_kms->smp) {
 		int ret;
 
-		/* We don't support SMP and 2 hwpipes/plane together */
-		WARN_ON(r_hwpipe);
-
 		DBG("%s: alloc SMP blocks", (*hwpipe)->name);
 		ret = mdp5_smp_assign(mdp5_kms->smp, &new_global_state->smp,
 				(*hwpipe)->pipe, blkcfg);
@@ -104,6 +101,27 @@ int mdp5_pipe_assign(struct drm_atomic_state *s, struct drm_plane *plane,
 			return -ENOMEM;
 
 		(*hwpipe)->blkcfg = blkcfg;
+
+		/*
+		 * Split display on SMP hardware (msm8974): the right hwpipe
+		 * fetches its half of the plane on its own and needs its own
+		 * blocks. blkcfg was sized for the full width, so this
+		 * over-allocates by half; the pool is 22 blocks and a
+		 * full-screen ARGB plane wants 4, so that is affordable.
+		 */
+		if (r_hwpipe) {
+			DBG("%s: alloc SMP blocks", (*r_hwpipe)->name);
+			ret = mdp5_smp_assign(mdp5_kms->smp,
+					      &new_global_state->smp,
+					      (*r_hwpipe)->pipe, blkcfg);
+			if (ret) {
+				mdp5_smp_release(mdp5_kms->smp,
+						 &new_global_state->smp,
+						 (*hwpipe)->pipe);
+				return -ENOMEM;
+			}
+			(*r_hwpipe)->blkcfg = blkcfg;
+		}
 	}
 
 	DBG("%s: assign to plane %s for caps %x",

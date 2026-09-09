@@ -266,7 +266,8 @@ int mdp5_ctl_set_cursor(struct mdp5_ctl *ctl, struct mdp5_pipeline *pipeline,
 		return -EINVAL;
 	}
 
-	if (pipeline->r_mixer) {
+	/* split display keeps the LM cursor on the left mixer only */
+	if (pipeline->r_mixer && !mdp5_pipeline_is_split(pipeline)) {
 		DRM_DEV_ERROR(ctl_mgr->dev->dev, "unsupported configuration");
 		return -EINVAL;
 	}

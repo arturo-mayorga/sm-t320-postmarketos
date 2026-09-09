@@ -78,6 +78,92 @@ static const struct kernel_param_ops mdp5_dump_ops = {
 module_param_cb(mdp5_dump, &mdp5_dump_ops, NULL, 0200);
 
 /*
+ * Generic MDP register window, because every split-display question is "what
+ * did CTL1 / INTF2 / LM1 actually end up with?" and /dev/mem cannot reach the
+ * register file on ARM32.
+ *
+ *   echo 0x21400      > /sys/module/msm/parameters/mdp5_peek   # 16 words
+ *   echo 0x21400,64   > /sys/module/msm/parameters/mdp5_peek   # 64 words
+ *   echo 0x2f4=1      > /sys/module/msm/parameters/mdp5_poke   # write
+ *
+ * Offsets are relative to the MDP base (same space as mdp5.xml.h).
+ */
+static int mdp5_peek_set(const char *val, const struct kernel_param *kp)
+{
+	struct mdp5_kms *mdp5_kms = mdp5_dbg_kms;
+	struct device *dev;
+	unsigned int off, count = 16, i;
+	char buf[64];
+	char *p, *cnt;
+
+	if (!mdp5_kms)
+		return -ENODEV;
+	strscpy(buf, val, sizeof(buf));
+	p = strim(buf);
+	cnt = strchr(p, ',');
+	if (cnt) {
+		*cnt++ = '\0';
+		if (kstrtouint(cnt, 0, &count))
+			return -EINVAL;
+	}
+	if (kstrtouint(p, 0, &off) || off & 3 || count > 256)
+		return -EINVAL;
+
+	dev = &mdp5_kms->pdev->dev;
+	pm_runtime_get_sync(dev);
+	for (i = 0; i < count; i += 4) {
+		u32 a = off + i * 4;
+		u32 v[4] = { 0 };
+		unsigned int j;
+
+		for (j = 0; j < 4 && i + j < count; j++)
+			v[j] = mdp5_read(mdp5_kms, a + j * 4);
+		pr_info("mdp5peek: %05x: %08x %08x %08x %08x\n",
+			a, v[0], v[1], v[2], v[3]);
+	}
+	pm_runtime_put_sync(dev);
+	return 0;
+}
+
+static const struct kernel_param_ops mdp5_peek_ops = {
+	.set = mdp5_peek_set,
+};
+module_param_cb(mdp5_peek, &mdp5_peek_ops, NULL, 0200);
+
+static int mdp5_poke_set(const char *val, const struct kernel_param *kp)
+{
+	struct mdp5_kms *mdp5_kms = mdp5_dbg_kms;
+	struct device *dev;
+	unsigned int off, v;
+	char buf[64];
+	char *p, *eq;
+
+	if (!mdp5_kms)
+		return -ENODEV;
+	strscpy(buf, val, sizeof(buf));
+	p = strim(buf);
+	eq = strchr(p, '=');
+	if (!eq)
+		return -EINVAL;
+	*eq++ = '\0';
+	if (kstrtouint(p, 0, &off) || off & 3 || kstrtouint(eq, 0, &v))
+		return -EINVAL;
+
+	dev = &mdp5_kms->pdev->dev;
+	pm_runtime_get_sync(dev);
+	mdp5_write(mdp5_kms, off, v);
+	pr_info("mdp5poke: %05x <= %08x (reads back %08x)\n", off, v,
+		mdp5_read(mdp5_kms, off));
+	pm_runtime_put_sync(dev);
+	return 0;
+}
+
+static const struct kernel_param_ops mdp5_poke_ops = {
+	.set = mdp5_poke_set,
+};
+module_param_cb(mdp5_poke, &mdp5_poke_ops, NULL, 0200);
+
+/*
  * Read back what the display is actually scanning out.
  *
  * "Is the panel dark or is the compositor drawing black?" cannot be answered

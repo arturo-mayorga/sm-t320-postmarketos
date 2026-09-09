@@ -69,7 +69,7 @@ mdp5_plane_atomic_print_state(struct drm_printer *p,
 
 	drm_printf(p, "\thwpipe=%s\n", pstate->hwpipe ?
 			pstate->hwpipe->name : "(null)");
-	if (mdp5_kms->caps & MDP_CAP_SRC_SPLIT)
+	if (mdp5_kms->caps & MDP_CAP_SRC_SPLIT || pstate->r_hwpipe)
 		drm_printf(p, "\tright-hwpipe=%s\n",
 			   pstate->r_hwpipe ? pstate->r_hwpipe->name :
 					      "(null)");
