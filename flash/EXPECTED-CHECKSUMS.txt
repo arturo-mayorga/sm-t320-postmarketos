@@ -1,0 +1,5 @@
+# Official TWRP checksums, fetched from dl.twrp.me on 2026-09-08
+# Device: mondrianwifi (Samsung Galaxy Tab Pro 8.4, SM-T320)
+
+sha256  b65674668e39757e754f7b98581697144f47d52f01d7eb18a3588c0aff7e3c41  twrp-3.4.0-0-mondrianwifi.img.tar
+md5     231300c874d2dea8181f20b4dfef016b                                  twrp-3.4.0-0-mondrianwifi.img.tar

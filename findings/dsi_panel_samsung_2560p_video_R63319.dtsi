@@ -1,0 +1,187 @@
+/* Copyright (c) 2012, Samsung Electronics Corporation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/* TODO: Can I enable partial-update ? */
+
+&mdss_mdp {
+	/* Override fudge factors */
+	qcom,mdss-ab-factor = <2 1>;
+	qcom,mdss-ib-factor = <3 2>;
+	qcom,mdss-clk-factor = <5 4>;
+
+	dsi_dual_2560p_vid_right: qcom,mdss_dsi_samsung_dual_2560p_video_right {
+		qcom,mdss-dsi-panel-name = "samsung tft 2560p video mode R63319 right panel";
+		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
+		qcom,enable-gpio = <&pm8941_gpios 14 0>;
+		qcom,rst-gpio = <&pm8941_gpios 9 0>;
+
+		qcom,cont-splash-enabled = <1>;
+		qcom,mdss-dsi-panel-width = <800>;
+		qcom,mdss-dsi-panel-height = <2560>;
+		qcom,mdss-pan-physical-width-dimension = <113>; /* <Width> in mm */
+		qcom,mdss-pan-physical-height-dimension = <181>; /* <Height> in mm */
+		qcom,mdss-dsi-bpp = <24>;
+		qcom,mdss-dsi-panel-destination = "display_1";
+		qcom,mdss-dsi-panel-broadcast-mode;
+		qcom,mdss-dsi-h-back-porch  = <64>;
+		qcom,mdss-dsi-h-pulse-width = <20>;
+		qcom,mdss-dsi-h-front-porch = <150>;
+		qcom,mdss-dsi-v-back-porch  = <8>;
+		qcom,mdss-dsi-v-pulse-width = <4>;
+		qcom,mdss-dsi-v-front-porch = <12>;
+		qcom,mdss-pan-underflow-color = <0x00>;
+
+		qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_dcs";
+		qcom,mdss-dsi-bl-min-level = <1>;
+		qcom,mdss-dsi-bl-max-level = <255>;
+
+		qcom,mdss-dsi-panel-type = "dsi_video_mode";
+		qcom,mdss-pan-dsi-h-pulse-mode = <0>;
+		qcom,mdss-dsi-bllp-power-mode;
+		qcom,mdss-dsi-bllp-eof-power-mode;
+		qcom,mdss-dsi-traffic-mode = "burst_mode";
+		qcom,mdss-dsi-virtual-channel-id = <0>;
+		qcom,mdss-dsi-lane-0-state;
+		qcom,mdss-dsi-lane-1-state;
+		qcom,mdss-dsi-lane-2-state;
+		qcom,mdss-dsi-lane-3-state;
+		qcom,mdss-dsi-t-clk-pre = <0x1c>;
+		qcom,mdss-dsi-t-clk-post = <0x04>;
+		qcom,mdss-dsi-stream = <0>; /* dma_p */
+		qcom,mdss-dsi-panel-framerate = <60>;
+		qcom,mdss-dsi-panel-clockrate = <964000000>;
+
+		qcom,mdss-dsi-panel-timings = [F9 50 42 00 6D 80
+						38 50 46 03 04 A0];
+
+		qcom,mdss-dsi-lp11-init;
+		qcom,mdss-dsi-init-delay-us = <20000>;
+
+		qcom,mdss-dsi-reset-sequence = <1 5>, <0 12>, <1 12>;
+
+		qcom,mdss-dsi-on-command = [
+					05 01 00 00 0A 00 02 01 00
+					15 01 00 00 00 00 02 36 00
+					15 01 00 00 00 00 02 3A 70
+					15 01 00 00 00 00 02 35 01
+					15 01 00 00 00 00 02 53 2C
+
+					23 01 00 00 00 00 02 B0 00
+					05 01 00 00 00 00 02 00 00
+					05 01 00 00 00 00 02 00 00
+					23 01 00 00 00 00 02 D6 01
+
+					/* CE tuning */
+					29 01 00 00 00 00 21 CA 01
+						80 C8 B9 FF FF FF A0 09
+						20 10 8C 0A 4A 37 A0 00
+						FF 0C 0C 0C 0C 3F 3F EF
+						00 10 10 3F 3F 3F 3F
+
+					05 01 00 00 78 00 02 11 00
+					05 01 00 00 00 00 02 29 00
+					15 01 00 00 00 00 02 51 15];
+
+		qcom,mdss-dsi-on-command-state = "dsi_hs_mode";
+
+		qcom,mdss-dsi-off-command = [
+			05 01 00 00 00 00 02 00 00
+			05 01 00 00 00 00 02 00 00];
+
+		qcom,mdss-dsi-off-command-state = "dsi_hs_mode";
+
+		qcom,panel-roi-alignment = <4 4 2 2 20 20>;
+	};
+
+	dsi_dual_2560p_vid_left: qcom,mdss_dsi_samsung_dual_2560p_video_left {
+		qcom,mdss-dsi-panel-name = "samsung tft 2560p video mode R63319 left panel";
+		qcom,mdss-dsi-panel-controller = <&mdss_dsi1>;
+		qcom,enable-gpio = <&pm8941_gpios 14 0>;
+		qcom,rst-gpio = <&pm8941_gpios 9 0>;
+
+		qcom,cont-splash-enabled = <1>;
+		qcom,mdss-dsi-panel-width = <800>;
+		qcom,mdss-dsi-panel-height = <2560>;
+		qcom,mdss-pan-physical-width-dimension = <113>; /* <Width> in mm */
+		qcom,mdss-pan-physical-height-dimension = <181>; /* <Height> in mm */
+		qcom,mdss-dsi-bpp = <24>;
+		qcom,mdss-dsi-panel-destination = "display_2";
+		qcom,mdss-dsi-panel-broadcast-mode;
+		qcom,mdss-dsi-h-back-porch  = <64>;
+		qcom,mdss-dsi-h-pulse-width = <20>;
+		qcom,mdss-dsi-h-front-porch = <150>;
+		qcom,mdss-dsi-v-back-porch  = <8>;
+		qcom,mdss-dsi-v-pulse-width = <4>;
+		qcom,mdss-dsi-v-front-porch = <12>;
+		qcom,mdss-pan-underflow-color = <0x00>;
+
+		qcom,mdss-dsi-bl-pmic-control-type = "UNKNOWN_CTRL";
+
+		qcom,mdss-dsi-panel-type = "dsi_video_mode";
+		qcom,mdss-pan-dsi-h-pulse-mode = <0>;
+		qcom,mdss-dsi-bllp-power-mode;
+		qcom,mdss-dsi-bllp-eof-power-mode;
+		qcom,mdss-dsi-traffic-mode = "burst_mode";
+		qcom,mdss-dsi-virtual-channel-id = <0>;
+		qcom,mdss-dsi-lane-0-state;
+		qcom,mdss-dsi-lane-1-state;
+		qcom,mdss-dsi-lane-2-state;
+		qcom,mdss-dsi-lane-3-state;
+		qcom,mdss-dsi-t-clk-pre = <0x1c>;
+		qcom,mdss-dsi-t-clk-post = <0x04>;
+		qcom,mdss-dsi-stream = <0>; /* dma_p */
+		qcom,mdss-dsi-panel-framerate = <60>;
+		qcom,mdss-dsi-panel-clockrate = <964000000>;
+
+		qcom,mdss-dsi-panel-timings = [F9 50 42 00 6D 80
+						38 50 46 03 04 A0];
+
+		qcom,mdss-dsi-lp11-init;
+		qcom,mdss-dsi-init-delay-us = <20000>;
+
+		qcom,mdss-dsi-reset-sequence = <1 5>, <0 12>, <1 12>;
+
+		qcom,mdss-dsi-on-command = [
+					05 01 00 00 0A 00 02 01 00
+					15 01 00 00 00 00 02 36 00
+					15 01 00 00 00 00 02 3A 70
+					15 01 00 00 00 00 02 35 01
+					15 01 00 00 00 00 02 53 2C
+
+					23 01 00 00 00 00 02 B0 00
+					05 01 00 00 00 00 02 00 00
+					05 01 00 00 00 00 02 00 00
+					23 01 00 00 00 00 02 D6 01
+
+					/* CE tuning */
+					29 01 00 00 00 00 21 CA 01
+						80 C8 B9 FF FF FF A0 09
+						20 10 8C 0A 4A 37 A0 00
+						FF 0C 0C 0C 0C 3F 3F EF
+						00 10 10 3F 3F 3F 3F
+
+					05 01 00 00 78 00 02 11 00
+					05 01 00 00 00 00 02 29 00
+					15 01 00 00 00 00 02 51 15
+					];
+
+		qcom,mdss-dsi-on-command-state = "dsi_hs_mode";
+
+		qcom,mdss-dsi-off-command = [
+					05 01 00 00 14 00 02 28 00
+					05 01 00 00 32 00 02 10 00
+					];
+		qcom,mdss-dsi-off-command-state = "dsi_hs_mode";
+
+		qcom,panel-roi-alignment = <4 4 2 2 20 20>;
+	};
+};

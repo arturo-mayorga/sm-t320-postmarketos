@@ -1,0 +1,802 @@
+diff --git c/Documentation/devicetree/bindings/arm/qcom.yaml i/Documentation/devicetree/bindings/arm/qcom.yaml
+index ff8a35df7..9166d6b96 100644
+--- c/Documentation/devicetree/bindings/arm/qcom.yaml
++++ i/Documentation/devicetree/bindings/arm/qcom.yaml
+@@ -47,6 +47,7 @@ properties:
+       - items:
+           - enum:
+               - qcom,apq8074-dragonboard
++              - samsung,mondrianwifi
+           - const: qcom,apq8074
+ 
+       - items:
+diff --git c/Documentation/devicetree/bindings/display/panel/samsung,r63319.yaml i/Documentation/devicetree/bindings/display/panel/samsung,r63319.yaml
+new file mode 100644
+index 000000000..681a8e3bf
+--- /dev/null
++++ i/Documentation/devicetree/bindings/display/panel/samsung,r63319.yaml
+@@ -0,0 +1,101 @@
++# SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
++%YAML 1.2
++---
++$id: http://devicetree.org/schemas/display/panel/samsung,r63319.yaml#
++$schema: http://devicetree.org/meta-schemas/core.yaml#
++
++title: Samsung 1600x2560 dual-DSI panel with Renesas R63319 controller
++
++maintainers:
++  - Arturo Mayorga <arturo@mayorga.io>
++
++description:
++  A 1600x2560 60Hz video mode panel driven over two DSI links, each carrying
++  one 800x2560 half. Found in the Samsung Galaxy Tab Pro 8.4 (SM-T320). Both
++  halves share a single reset and a single enable line.
++
++allOf:
++  - $ref: panel-common.yaml#
++
++properties:
++  compatible:
++    const: samsung,r63319-tabpro84
++
++  reg:
++    maxItems: 1
++
++  vdd-supply:
++    description: Panel power supply (3.3V)
++
++  vddio-supply:
++    description: I/O and interface supply (1.8V)
++
++  reset-gpios: true
++  enable-gpios: true
++  backlight: true
++
++  ports:
++    $ref: /schemas/graph.yaml#/properties/ports
++
++    properties:
++      port@0:
++        $ref: /schemas/graph.yaml#/properties/port
++        description: Primary DSI input, drives the right half of the panel
++
++      port@1:
++        $ref: /schemas/graph.yaml#/properties/port
++        description: Secondary DSI input, drives the left half of the panel
++
++    required:
++      - port@0
++      - port@1
++
++required:
++  - compatible
++  - reg
++  - vdd-supply
++  - vddio-supply
++  - reset-gpios
++  - ports
++
++additionalProperties: false
++
++examples:
++  - |
++    #include <dt-bindings/gpio/gpio.h>
++
++    dsi {
++        #address-cells = <1>;
++        #size-cells = <0>;
++
++        panel@0 {
++            compatible = "samsung,r63319-tabpro84";
++            reg = <0>;
++
++            vdd-supply = <&pm8941_l22>;
++            vddio-supply = <&pm8941_l12>;
++
++            reset-gpios = <&pm8941_gpios 9 GPIO_ACTIVE_LOW>;
++            enable-gpios = <&pm8941_gpios 14 GPIO_ACTIVE_HIGH>;
++
++            ports {
++                #address-cells = <1>;
++                #size-cells = <0>;
++
++                port@0 {
++                    reg = <0>;
++                    panel_in0: endpoint {
++                        remote-endpoint = <&mdss_dsi0_out>;
++                    };
++                };
++
++                port@1 {
++                    reg = <1>;
++                    panel_in1: endpoint {
++                        remote-endpoint = <&mdss_dsi1_out>;
++                    };
++                };
++            };
++        };
++    };
++...
+diff --git c/arch/arm/boot/dts/qcom/Makefile i/arch/arm/boot/dts/qcom/Makefile
+index 026d5b682..1ac295d03 100644
+--- c/arch/arm/boot/dts/qcom/Makefile
++++ i/arch/arm/boot/dts/qcom/Makefile
+@@ -46,6 +46,7 @@ dtb-$(CONFIG_ARCH_QCOM) += \
+ 	qcom-msm8960-sony-huashan.dtb \
+ 	qcom-msm8974-lge-nexus5-hammerhead.dtb \
+ 	qcom-msm8974-samsung-hlte.dtb \
++	qcom-msm8974-samsung-mondrianwifi.dtb \
+ 	qcom-msm8974-sony-xperia-rhine-amami.dtb \
+ 	qcom-msm8974-sony-xperia-rhine-honami.dtb \
+ 	qcom-msm8974-sony-xperia-rhine-togari.dtb \
+diff --git c/arch/arm/boot/dts/qcom/qcom-msm8974-samsung-mondrianwifi.dts i/arch/arm/boot/dts/qcom/qcom-msm8974-samsung-mondrianwifi.dts
+new file mode 100644
+index 000000000..af3129748
+--- /dev/null
++++ i/arch/arm/boot/dts/qcom/qcom-msm8974-samsung-mondrianwifi.dts
+@@ -0,0 +1,335 @@
++// SPDX-License-Identifier: BSD-3-Clause
++/*
++ * Samsung Galaxy Tab Pro 8.4 Wi-Fi (SM-T320, "mondrianwifi")
++ * APQ8074 / msm8974 + PM8941 + PM8841
++ *
++ * DRAFT. Values traced from the downstream include chain
++ * (apq8074-sec-mondrianwifi-r12.dts -> msm8974-mdss-sec.dtsi,
++ *  msm8974-sec-mondrian-r12.dtsi, msm8974-sec-tabpro-common.dtsi)
++ * and cross-checked against live sysfs on the running device.
++ */
++
++/dts-v1/;
++
++#include "qcom-msm8974.dtsi"
++#include "pm8841.dtsi"
++#include "pm8941.dtsi"
++#include <dt-bindings/input/input.h>
++#include <dt-bindings/interrupt-controller/irq.h>
++#include <dt-bindings/pinctrl/qcom,pmic-gpio.h>
++
++/ {
++	model = "Samsung Galaxy Tab Pro 8.4";
++	compatible = "samsung,mondrianwifi", "qcom,apq8074";
++	chassis-type = "tablet";
++
++	chosen {
++		stdout-path = "serial0:115200n8";
++	};
++
++	gpio-keys {
++		compatible = "gpio-keys";
++
++		pinctrl-0 = <&gpio_keys_pin_a>;
++		pinctrl-names = "default";
++
++		key-home {
++			label = "Home";
++			gpios = <&pm8941_gpios 3 GPIO_ACTIVE_LOW>;
++			linux,code = <KEY_HOMEPAGE>;
++			debounce-interval = <15>;
++		};
++
++		key-volume-down {
++			label = "Volume Down";
++			gpios = <&pm8941_gpios 2 GPIO_ACTIVE_LOW>;
++			linux,code = <KEY_VOLUMEDOWN>;
++			debounce-interval = <15>;
++		};
++
++		key-volume-up {
++			label = "Volume Up";
++			gpios = <&pm8941_gpios 5 GPIO_ACTIVE_LOW>;
++			linux,code = <KEY_VOLUMEUP>;
++			debounce-interval = <15>;
++		};
++	};
++};
++
++/*
++ * Touchscreen. Downstream: synaptics@20 on i2c@f9924000 (== blsp1_i2c2),
++ * irq pm8941_gpios 30, avdd = l22 (3.3V live), vcc_i2c = l10 (1.85V live).
++ * Wiring is identical to qcom-msm8974-samsung-hlte.dts.
++ */
++&blsp1_i2c2 {
++	status = "okay";
++
++	touchscreen@20 {
++		compatible = "syna,rmi4-i2c";
++		reg = <0x20>;
++
++		interrupt-parent = <&pm8941_gpios>;
++		interrupts = <30 IRQ_TYPE_EDGE_FALLING>;
++
++		vdd-supply = <&pm8941_l22>;
++		vio-supply = <&pm8941_l10>;
++
++		pinctrl-0 = <&touch_pin>;
++		pinctrl-names = "default";
++
++		syna,startup-delay-ms = <100>;
++
++		#address-cells = <1>;
++		#size-cells = <0>;
++
++		rmi4-f01@1 {
++			reg = <0x1>;
++			syna,nosleep-mode = <1>;
++		};
++
++		rmi4-f12@12 {
++			reg = <0x12>;
++			syna,sensor-type = <1>;
++		};
++	};
++};
++
++&pm8941_gpios {
++	gpio_keys_pin_a: gpio-keys-active-state {
++		pins = "gpio2", "gpio3", "gpio5";
++		function = "normal";
++		bias-pull-up;
++		power-source = <PM8941_GPIO_S3>;
++	};
++
++	touch_pin: touch-int-state {
++		pins = "gpio30";
++		function = "normal";
++		bias-disable;
++		input-enable;
++		power-source = <PM8941_GPIO_S3>;
++	};
++
++	panel_pin: panel-state {
++		pins = "gpio9", "gpio14";
++		function = "normal";
++		bias-disable;
++		power-source = <PM8941_GPIO_S3>;
++		output-high;
++	};
++};
++
++/*
++ * Rails. Voltages below were read from live sysfs on the running device
++ * (see tabpro84-port/findings/NOTES.md), not guessed:
++ *   l2 = 1.200V  l10 = 1.850V  l12 = 1.800V  l22 = 3.300V
++ */
++&rpm_requests {
++	regulators-0 {
++		compatible = "qcom,rpm-pm8841-regulators";
++
++		pm8841_s1: s1 {
++			regulator-min-microvolt = <675000>;
++			regulator-max-microvolt = <1050000>;
++		};
++
++		pm8841_s3: s3 {
++			regulator-min-microvolt = <1050000>;
++			regulator-max-microvolt = <1050000>;
++		};
++	};
++
++	regulators-1 {
++		compatible = "qcom,rpm-pm8941-regulators";
++
++		pm8941_s1: s1 {
++			regulator-min-microvolt = <1300000>;
++			regulator-max-microvolt = <1300000>;
++			regulator-always-on;
++		};
++
++		pm8941_s2: s2 {
++			regulator-min-microvolt = <2150000>;
++			regulator-max-microvolt = <2150000>;
++		};
++
++		pm8941_s3: s3 {
++			regulator-min-microvolt = <1800000>;
++			regulator-max-microvolt = <1800000>;
++			regulator-always-on;
++		};
++
++		pm8941_l2: l2 {
++			regulator-min-microvolt = <1200000>;
++			regulator-max-microvolt = <1200000>;
++		};
++
++		pm8941_l10: l10 {
++			regulator-min-microvolt = <1850000>;
++			regulator-max-microvolt = <1850000>;
++		};
++
++		pm8941_l12: l12 {
++			regulator-min-microvolt = <1800000>;
++			regulator-max-microvolt = <1800000>;
++			regulator-always-on;
++		};
++
++		pm8941_l20: l20 {
++			regulator-min-microvolt = <2950000>;
++			regulator-max-microvolt = <2950000>;
++			regulator-system-load = <200000>;
++			regulator-allow-set-load;
++			regulator-boot-on;
++		};
++
++		pm8941_l22: l22 {
++			regulator-min-microvolt = <3300000>;
++			regulator-max-microvolt = <3300000>;
++			regulator-boot-on;
++		};
++
++		pm8941_l6: l6 {
++			regulator-min-microvolt = <1800000>;
++			regulator-max-microvolt = <1800000>;
++			regulator-boot-on;
++		};
++
++		pm8941_l24: l24 {
++			regulator-min-microvolt = <3075000>;
++			regulator-max-microvolt = <3075000>;
++			regulator-boot-on;
++		};
++	};
++};
++
++&blsp1_uart2 {
++	status = "okay";
++};
++
++&sdhc_1 {
++	status = "okay";
++
++	vmmc-supply = <&pm8941_l20>;
++	vqmmc-supply = <&pm8941_s3>;
++
++	pinctrl-0 = <&sdc1_on>;
++	pinctrl-names = "default";
++};
++
++&tlmm {
++	sdc1_on: sdc1-on-state {
++		clk-pins {
++			pins = "sdc1_clk";
++			drive-strength = <16>;
++			bias-disable;
++		};
++
++		cmd-data-pins {
++			pins = "sdc1_cmd", "sdc1_data";
++			drive-strength = <10>;
++			bias-pull-up;
++		};
++	};
++};
++
++
++&mdss {
++	status = "okay";
++};
++
++&mdss_dsi0 {
++	status = "okay";
++
++	vdd-supply   = <&pm8941_l22>;
++	vddio-supply = <&pm8941_l12>;
++	vdda-supply  = <&pm8941_l2>;
++
++	panel@0 {
++		compatible = "samsung,r63319-tabpro84";
++		reg = <0>;
++
++		/* one physical panel, one reset and one enable shared by both links */
++		reset-gpios  = <&pm8941_gpios  9 GPIO_ACTIVE_LOW>;
++		enable-gpios = <&pm8941_gpios 14 GPIO_ACTIVE_HIGH>;
++
++		vdd-supply   = <&pm8941_l22>;
++		vddio-supply = <&pm8941_l12>;
++
++		pinctrl-0 = <&panel_pin>;
++		pinctrl-names = "default";
++
++		ports {
++			#address-cells = <1>;
++			#size-cells = <0>;
++
++			port@0 {
++				reg = <0>;
++				panel_in0: endpoint {
++					remote-endpoint = <&mdss_dsi0_out>;
++				};
++			};
++
++			port@1 {
++				reg = <1>;
++				panel_in1: endpoint {
++					remote-endpoint = <&mdss_dsi1_out>;
++				};
++			};
++		};
++	};
++};
++
++&mdss_dsi0_out {
++	remote-endpoint = <&panel_in0>;
++	data-lanes = <0 1 2 3>;
++};
++
++&mdss_dsi0_phy {
++	status = "okay";
++	vddio-supply = <&pm8941_l12>;
++};
++
++&mdss_dsi1 {
++	status = "okay";
++
++	vdd-supply   = <&pm8941_l22>;
++	vddio-supply = <&pm8941_l12>;
++	vdda-supply  = <&pm8941_l2>;
++};
++
++&mdss_dsi1_out {
++	remote-endpoint = <&panel_in1>;
++	data-lanes = <0 1 2 3>;
++};
++
++&mdss_dsi1_phy {
++	status = "okay";
++	vddio-supply = <&pm8941_l12>;
++};
++
++/*
++ * USB. On a device with no exposed UART and no working display yet, USB
++ * networking from the initramfs is the ONLY way to tell whether the kernel
++ * booted at all. Copied from qcom-msm8974-samsung-lt03lte.dts, which is the
++ * same SoC and vendor and is a working pmOS port.
++ */
++&usb {
++	phys = <&usb_hs1_phy>;
++	phy-select = <&tcsr 0xb000 0>;
++
++	hnp-disable;
++	srp-disable;
++	adp-disable;
++
++	status = "okay";
++};
++
++&usb_hs1_phy {
++	v1p8-supply = <&pm8941_l6>;
++	v3p3-supply = <&pm8941_l24>;
++
++	qcom,init-seq = /bits/ 8 <0x1 0x64>;
++
++	status = "okay";
++};
+diff --git c/drivers/gpu/drm/panel/Kconfig i/drivers/gpu/drm/panel/Kconfig
+index cbdf7b8f7..c422e7ab2 100644
+--- c/drivers/gpu/drm/panel/Kconfig
++++ i/drivers/gpu/drm/panel/Kconfig
+@@ -863,6 +863,16 @@ config DRM_PANEL_RENESAS_R63419
+ 
+ 	  These panels are used in Ayaneo handheld gaming devices.
+ 
++config DRM_PANEL_SAMSUNG_R63319
++	tristate "Samsung 1600x2560 dual-DSI panel with Renesas R63319 IC"
++	depends on OF && GPIOLIB
++	depends on DRM_MIPI_DSI
++	depends on BACKLIGHT_CLASS_DEVICE
++	help
++	  Say Y here if you want to enable support for the Samsung 1600x2560
++	  60Hz dual-DSI video mode panel with the Renesas R63319 IC, as found
++	  in the Samsung Galaxy Tab Pro 8.4 (SM-T320).
++
+ config DRM_PANEL_RENESAS_R69328
+ 	tristate "Renesas R69328 720x1280 DSI video mode panel"
+ 	depends on OF
+diff --git c/drivers/gpu/drm/panel/Makefile i/drivers/gpu/drm/panel/Makefile
+index 3b523cf37..874d83d0d 100644
+--- c/drivers/gpu/drm/panel/Makefile
++++ i/drivers/gpu/drm/panel/Makefile
+@@ -84,6 +84,7 @@ obj-$(CONFIG_DRM_PANEL_RAYDIUM_RM692E5) += panel-raydium-rm692e5.o
+ obj-$(CONFIG_DRM_PANEL_RAYDIUM_RM69380) += panel-raydium-rm69380.o
+ obj-$(CONFIG_DRM_PANEL_RENESAS_R61307) += panel-renesas-r61307.o
+ obj-$(CONFIG_DRM_PANEL_RENESAS_R63419) += panel-renesas-r63419.o
++obj-$(CONFIG_DRM_PANEL_SAMSUNG_R63319) += panel-samsung-r63319.o
+ obj-$(CONFIG_DRM_PANEL_RENESAS_R69328) += panel-renesas-r69328.o
+ obj-$(CONFIG_DRM_PANEL_RONBO_RB070D30) += panel-ronbo-rb070d30.o
+ obj-$(CONFIG_DRM_PANEL_SAMSUNG_AMS581VF01) += panel-samsung-ams581vf01.o
+diff --git c/drivers/gpu/drm/panel/panel-samsung-r63319.c i/drivers/gpu/drm/panel/panel-samsung-r63319.c
+new file mode 100644
+index 000000000..3126a7654
+--- /dev/null
++++ i/drivers/gpu/drm/panel/panel-samsung-r63319.c
+@@ -0,0 +1,291 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/*
++ * Samsung 1600x2560 dual-DSI video mode panel (Renesas R63319 controller)
++ * as found in the Samsung Galaxy Tab Pro 8.4 (SM-T320, "mondrianwifi").
++ *
++ * DRAFT - derived from panel-renesas-r63419.c. Timings and init sequence
++ * translated from the downstream Samsung MDSS device tree
++ * (dsi_panel_samsung_2560p_video_R63319.dtsi).
++ */
++
++#include <linux/backlight.h>
++#include <linux/delay.h>
++#include <linux/gpio/consumer.h>
++#include <linux/mod_devicetable.h>
++#include <linux/module.h>
++#include <linux/of.h>
++#include <linux/of_graph.h>
++#include <linux/regulator/consumer.h>
++
++#include <video/mipi_display.h>
++
++#include <drm/drm_connector.h>
++#include <drm/drm_mipi_dsi.h>
++#include <drm/drm_modes.h>
++#include <drm/drm_of.h>
++#include <drm/drm_panel.h>
++#include <drm/drm_probe_helper.h>
++
++struct r63319_panel {
++	struct drm_panel panel;
++	struct mipi_dsi_device *dsi[2];
++	struct regulator_bulk_data *supplies;
++	struct gpio_desc *reset_gpio;
++	struct gpio_desc *enable_gpio;
++};
++
++/* pm8941_l22 @ 3.3V and pm8941_l12 @ 1.8V, per live sysfs on SM-T320 */
++static const struct regulator_bulk_data r63319_supplies[] = {
++	{ .supply = "vdd" },
++	{ .supply = "vddio" },
++};
++
++static inline struct r63319_panel *to_r63319(struct drm_panel *panel)
++{
++	return container_of(panel, struct r63319_panel, panel);
++}
++
++/*
++ * Colour-enhancement tuning payload, byte-for-byte from the downstream
++ * qcom,mdss-dsi-on-command block. Undocumented vendor register.
++ */
++static const u8 r63319_ce_tuning[] = {
++	0xca, 0x01, 0x80, 0xc8, 0xb9, 0xff, 0xff, 0xff,
++	0xa0, 0x09, 0x20, 0x10, 0x8c, 0x0a, 0x4a, 0x37,
++	0xa0, 0x00, 0xff, 0x0c, 0x0c, 0x0c, 0x0c, 0x3f,
++	0x3f, 0xef, 0x00, 0x10, 0x10, 0x3f, 0x3f, 0x3f,
++	0x3f,
++};
++
++/*
++ * Full panel is 1600x2560; each DSI link drives one 800x2560 half, so every
++ * horizontal figure below is the downstream per-link value doubled.
++ * Derived pixel clock 320.622 MHz -> 961.9 MHz/lane at 24bpp over 4 lanes,
++ * which matches the downstream qcom,mdss-dsi-panel-clockrate of 964 MHz.
++ */
++static const struct drm_display_mode r63319_mode = {
++	.clock		= 320622,
++	.hdisplay	= 1600,
++	.hsync_start	= 1900,	/* 1600 + 2*150 front porch */
++	.hsync_end	= 1940,	/* +      2*20  pulse width */
++	.htotal		= 2068,	/* +      2*64  back porch  */
++	.vdisplay	= 2560,
++	.vsync_start	= 2572,	/* 2560 + 12 front porch */
++	.vsync_end	= 2576,	/* +       4 pulse width */
++	.vtotal		= 2584,	/* +       8 back porch  */
++	.width_mm	= 114,	/* 8.4" diagonal, 16:10 */
++	.height_mm	= 182,
++};
++
++static int r63319_on(struct r63319_panel *ctx)
++{
++	struct mipi_dsi_multi_context dsi_ctx = { 0 };
++	struct mipi_dsi_device *d0 = ctx->dsi[0], *d1 = ctx->dsi[1];
++
++	/*
++	 * Sequence transcribed from the downstream Samsung MDSS device tree,
++	 * qcom,mdss-dsi-on-command in dsi_panel_samsung_2560p_video_R63319.dtsi.
++	 * Raw DCS/generic command bytes are used so this stays a literal
++	 * translation of the vendor sequence.
++	 */
++	mipi_dsi_dual(mipi_dsi_dcs_soft_reset_multi, &dsi_ctx, d0, d1);
++	mipi_dsi_msleep(&dsi_ctx, 10);
++
++	mipi_dsi_dual_dcs_write_seq_multi(&dsi_ctx, d0, d1,
++					  MIPI_DCS_SET_ADDRESS_MODE, 0x00);
++	mipi_dsi_dual_dcs_write_seq_multi(&dsi_ctx, d0, d1,
++					  MIPI_DCS_SET_PIXEL_FORMAT, 0x70);
++	mipi_dsi_dual_dcs_write_seq_multi(&dsi_ctx, d0, d1,
++					  MIPI_DCS_SET_TEAR_ON, 0x01);
++	/* 0x53 = write_control_display: backlight ctrl on, dimming off */
++	mipi_dsi_dual_dcs_write_seq_multi(&dsi_ctx, d0, d1, 0x53, 0x2c);
++
++	/* unlock manufacturer command access, then vendor colour-enhance block */
++	mipi_dsi_dual_generic_write_seq_multi(&dsi_ctx, d0, d1, 0xb0, 0x00);
++	mipi_dsi_dual_generic_write_seq_multi(&dsi_ctx, d0, d1, 0xd6, 0x01);
++	mipi_dsi_dual_generic_write_multi(&dsi_ctx, d0, d1, r63319_ce_tuning,
++					  ARRAY_SIZE(r63319_ce_tuning));
++
++	mipi_dsi_dual(mipi_dsi_dcs_exit_sleep_mode_multi, &dsi_ctx, d0, d1);
++	mipi_dsi_msleep(&dsi_ctx, 120);
++
++	mipi_dsi_dual(mipi_dsi_dcs_set_display_on_multi, &dsi_ctx, d0, d1);
++	mipi_dsi_dual_dcs_write_seq_multi(&dsi_ctx, d0, d1,
++					  MIPI_DCS_SET_DISPLAY_BRIGHTNESS, 0x15);
++
++	return dsi_ctx.accum_err;
++}
++
++static int r63319_off(struct r63319_panel *ctx)
++{
++	struct mipi_dsi_multi_context dsi_ctx = { 0 };
++
++	mipi_dsi_dual(mipi_dsi_dcs_set_display_off_multi, &dsi_ctx,
++		      ctx->dsi[0], ctx->dsi[1]);
++	mipi_dsi_msleep(&dsi_ctx, 20);
++	mipi_dsi_dual(mipi_dsi_dcs_enter_sleep_mode_multi, &dsi_ctx,
++		      ctx->dsi[0], ctx->dsi[1]);
++	mipi_dsi_msleep(&dsi_ctx, 50);
++
++	return dsi_ctx.accum_err;
++}
++
++/*
++ * Downstream qcom,mdss-dsi-reset-sequence = <1 5>, <0 12>, <1 12> gives RAW
++ * pin levels high/low/high, i.e. the panel is held in reset while the line is
++ * LOW -> reset is active low, declared GPIO_ACTIVE_LOW in the DT. gpiod values
++ * below are therefore logical (1 = asserted = pin driven low), which inverts
++ * the raw downstream numbers and, importantly, leaves reset DEASSERTED.
++ */
++static void r63319_reset(struct r63319_panel *ctx)
++{
++	gpiod_set_value_cansleep(ctx->reset_gpio, 0);	/* deasserted, pin high */
++	msleep(5);
++	gpiod_set_value_cansleep(ctx->reset_gpio, 1);	/* asserted,   pin low  */
++	msleep(12);
++	gpiod_set_value_cansleep(ctx->reset_gpio, 0);	/* deasserted, pin high */
++	msleep(12);
++}
++
++static int r63319_prepare(struct drm_panel *panel)
++{
++	struct r63319_panel *ctx = to_r63319(panel);
++	struct device *dev = &ctx->dsi[0]->dev;
++	int ret;
++
++	ret = regulator_bulk_enable(ARRAY_SIZE(r63319_supplies), ctx->supplies);
++	if (ret < 0)
++		return dev_err_probe(dev, ret, "Failed to enable regulators\n");
++
++	gpiod_set_value_cansleep(ctx->enable_gpio, 1);
++	usleep_range(20000, 21000);	/* qcom,mdss-dsi-init-delay-us = 20000 */
++
++	r63319_reset(ctx);
++
++	ret = r63319_on(ctx);
++	if (ret < 0) {
++		gpiod_set_value_cansleep(ctx->reset_gpio, 1);
++		gpiod_set_value_cansleep(ctx->enable_gpio, 0);
++		regulator_bulk_disable(ARRAY_SIZE(r63319_supplies), ctx->supplies);
++		return ret;
++	}
++
++	return 0;
++}
++
++static int r63319_unprepare(struct drm_panel *panel)
++{
++	struct r63319_panel *ctx = to_r63319(panel);
++
++	r63319_off(ctx);
++
++	gpiod_set_value_cansleep(ctx->reset_gpio, 1);
++	gpiod_set_value_cansleep(ctx->enable_gpio, 0);
++	regulator_bulk_disable(ARRAY_SIZE(r63319_supplies), ctx->supplies);
++
++	return 0;
++}
++
++static int r63319_get_modes(struct drm_panel *panel, struct drm_connector *connector)
++{
++	return drm_connector_helper_get_modes_fixed(connector, &r63319_mode);
++}
++
++static const struct drm_panel_funcs r63319_panel_funcs = {
++	.prepare	= r63319_prepare,
++	.unprepare	= r63319_unprepare,
++	.get_modes	= r63319_get_modes,
++};
++
++static int r63319_probe(struct mipi_dsi_device *dsi)
++{
++	struct mipi_dsi_device_info info = { "r63319-panel", 0, NULL };
++	struct device *dev = &dsi->dev;
++	struct mipi_dsi_host *dsi1_host;
++	struct device_node *dsi1_node;
++	struct r63319_panel *ctx;
++	int ret, i;
++
++	ctx = devm_drm_panel_alloc(dev, struct r63319_panel, panel,
++				   &r63319_panel_funcs,
++				   DRM_MODE_CONNECTOR_DSI);
++	if (IS_ERR(ctx))
++		return PTR_ERR(ctx);
++
++	ret = devm_regulator_bulk_get_const(dev, ARRAY_SIZE(r63319_supplies),
++					    r63319_supplies, &ctx->supplies);
++	if (ret < 0)
++		return ret;
++
++	ctx->reset_gpio = devm_gpiod_get(dev, "reset", GPIOD_OUT_HIGH);
++	if (IS_ERR(ctx->reset_gpio))
++		return dev_err_probe(dev, PTR_ERR(ctx->reset_gpio),
++				     "Failed to get reset-gpios\n");
++
++	ctx->enable_gpio = devm_gpiod_get(dev, "enable", GPIOD_OUT_LOW);
++	if (IS_ERR(ctx->enable_gpio))
++		return dev_err_probe(dev, PTR_ERR(ctx->enable_gpio),
++				     "Failed to get enable-gpios\n");
++
++	/* second DSI host drives the left half of the panel */
++	dsi1_node = of_graph_get_remote_node(dev->of_node, 1, -1);
++	if (!dsi1_node)
++		return dev_err_probe(dev, -ENODEV,
++				     "Failed to find second DSI host node\n");
++
++	dsi1_host = of_find_mipi_dsi_host_by_node(dsi1_node);
++	of_node_put(dsi1_node);
++	if (!dsi1_host)
++		return dev_err_probe(dev, -EPROBE_DEFER,
++				     "Failed to find second DSI host\n");
++
++	ctx->dsi[1] = devm_mipi_dsi_device_register_full(dev, dsi1_host, &info);
++	if (IS_ERR(ctx->dsi[1]))
++		return dev_err_probe(dev, PTR_ERR(ctx->dsi[1]),
++				     "Failed to register second DSI device\n");
++
++	ctx->dsi[0] = dsi;
++	mipi_dsi_set_drvdata(dsi, ctx);
++
++	ret = drm_panel_of_backlight(&ctx->panel);
++	if (ret)
++		return dev_err_probe(dev, ret, "Failed to get backlight\n");
++
++	ret = devm_drm_panel_add(dev, &ctx->panel);
++	if (ret < 0)
++		return dev_err_probe(dev, ret, "Failed to add panel\n");
++
++	for (i = 0; i < ARRAY_SIZE(ctx->dsi); i++) {
++		ctx->dsi[i]->lanes = 4;
++		ctx->dsi[i]->format = MIPI_DSI_FMT_RGB888;
++		ctx->dsi[i]->mode_flags = MIPI_DSI_MODE_VIDEO |
++					  MIPI_DSI_MODE_VIDEO_BURST |
++					  MIPI_DSI_CLOCK_NON_CONTINUOUS |
++					  MIPI_DSI_MODE_LPM;
++
++		ret = devm_mipi_dsi_attach(dev, ctx->dsi[i]);
++		if (ret < 0)
++			return dev_err_probe(dev, ret,
++					     "Failed to attach DSI %d\n", i);
++	}
++
++	return 0;
++}
++
++static const struct of_device_id r63319_of_match[] = {
++	{ .compatible = "samsung,r63319-tabpro84" },
++	{ }
++};
++MODULE_DEVICE_TABLE(of, r63319_of_match);
++
++static struct mipi_dsi_driver r63319_driver = {
++	.probe = r63319_probe,
++	.driver = {
++		.name = "panel-samsung-r63319",
++		.of_match_table = r63319_of_match,
++	},
++};
++module_mipi_dsi_driver(r63319_driver);
++
++MODULE_DESCRIPTION("DRM driver for Samsung 1600x2560 dual-DSI R63319 panel (SM-T320)");
++MODULE_LICENSE("GPL");

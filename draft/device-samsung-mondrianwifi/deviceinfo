@@ -1,0 +1,43 @@
+# Reference: <https://postmarketos.org/deviceinfo>
+# Please use double quotes only. You can source this file in shell scripts.
+
+deviceinfo_format_version="0"
+deviceinfo_name="Samsung Galaxy Tab Pro 8.4 (Wi-Fi)"
+deviceinfo_manufacturer="Samsung"
+deviceinfo_codename="samsung-mondrianwifi"
+deviceinfo_year="2014"
+deviceinfo_dtb="qcom-msm8974-samsung-mondrianwifi"
+deviceinfo_arch="armv7"
+
+# Device related
+deviceinfo_chassis="tablet"
+deviceinfo_external_storage="true"
+# panel is native portrait 1600x2560; stock fb0 reports "U:1600x2560p-0"
+deviceinfo_screen_width="1600"
+deviceinfo_screen_height="2560"
+deviceinfo_getty="ttyMSM0;115200"
+deviceinfo_create_initfs_extra="true"
+
+# Bootloader related.
+# Offsets from the downstream device tree's mkbootimg.mk / BoardConfig.mk:
+#   BOARD_KERNEL_BASE 0x00000000, pagesize 2048,
+#   --ramdisk_offset 0x02900000 --tags_offset 0x02700000
+# The downstream Android kernel used QCDT (BOARD_KERNEL_SEPARATED_DT + DTBTOOL),
+# but we build a MAINLINE kernel, whose dtbs carry no qcom,msm-id / qcom,board-id
+# for dtbTool to key on (verified: 0 such props in our dtb and in upstream hlte).
+# Every mainline msm8974 device in pmaports therefore uses append_dtb and reaches
+# the kernel via lk2nd-msm8974, which is itself a QCDT image stock aboot accepts.
+deviceinfo_append_dtb="true"
+deviceinfo_flash_method="heimdall-bootimg"
+deviceinfo_generate_bootimg="true"
+deviceinfo_bootimg_append_seandroidenforce="true"
+deviceinfo_flash_offset_base="0x00000000"
+deviceinfo_flash_offset_kernel="0x00008000"
+deviceinfo_flash_offset_ramdisk="0x02900000"
+deviceinfo_flash_offset_tags="0x02700000"
+deviceinfo_partition_type="msdos"
+deviceinfo_flash_pagesize="2048"
+
+# Heimdall related. PIT labels confirmed with `heimdall print-pit`:
+#   entry 13 BOOT (boot.img, 20480 blocks)
+deviceinfo_flash_heimdall_partition_kernel="BOOT"

@@ -1,0 +1,96 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * Bonded dual-DSI panel fragment for the Galaxy Tab Pro 8.4 (SM-T320).
+ * Renesas R63319 controller, 1600x2560 native portrait, driven as two
+ * 800x2560 halves: right -> mdss_dsi0, left -> mdss_dsi1.
+ *
+ * Rails and GPIOs below are traced from msm8974-mdss-sec.dtsi (the Samsung
+ * mdss file actually in this board's include chain -- NOT the generic
+ * msm8974-mdss.dtsi) and confirmed against live sysfs:
+ *   pm8941_l22 = 3.30V (vdd)   pm8941_l12 = 1.80V (vddio)
+ *   pm8941_l2  = 1.20V (vdda)
+ *   reset  = pm8941_gpios 9    enable = pm8941_gpios 14
+ * Backlight PWM sits on pm8941_gpios 36 (TI LP8556) -- not wired up here yet.
+ */
+
+&mdss {
+	status = "okay";
+};
+
+&mdss_dsi0 {
+	status = "okay";
+
+	vdd-supply   = <&pm8941_l22>;
+	vddio-supply = <&pm8941_l12>;
+	vdda-supply  = <&pm8941_l2>;
+
+	ports {
+		port@1 {
+			endpoint {
+				remote-endpoint = <&panel_in0>;
+				data-lanes = <0 1 2 3>;
+			};
+		};
+	};
+
+	panel@0 {
+		compatible = "samsung,r63319-tabpro84";
+		reg = <0>;
+
+		/* one physical panel, one reset and one enable shared by both links */
+		reset-gpios  = <&pm8941_gpios  9 GPIO_ACTIVE_LOW>;
+		enable-gpios = <&pm8941_gpios 14 GPIO_ACTIVE_HIGH>;
+
+		vdd-supply   = <&pm8941_l22>;
+		vddio-supply = <&pm8941_l12>;
+
+		pinctrl-0 = <&panel_pin>;
+		pinctrl-names = "default";
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			port@0 {
+				reg = <0>;
+				panel_in0: endpoint {
+					remote-endpoint = <&mdss_dsi0_out>;
+				};
+			};
+
+			port@1 {
+				reg = <1>;
+				panel_in1: endpoint {
+					remote-endpoint = <&mdss_dsi1_out>;
+				};
+			};
+		};
+	};
+};
+
+&mdss_dsi0_phy {
+	status = "okay";
+	vddio-supply = <&pm8941_l12>;
+};
+
+&mdss_dsi1 {
+	status = "okay";
+
+	vdd-supply   = <&pm8941_l22>;
+	vddio-supply = <&pm8941_l12>;
+	vdda-supply  = <&pm8941_l2>;
+
+	ports {
+		port@1 {
+			endpoint {
+				remote-endpoint = <&panel_in1>;
+				data-lanes = <0 1 2 3>;
+			};
+		};
+	};
+};
+
+&mdss_dsi1_phy {
+	status = "okay";
+	vddio-supply = <&pm8941_l12>;
+};

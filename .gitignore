@@ -1,0 +1,27 @@
+# Regenerable: kernel clones and extracted tarballs
+/linux/
+/k616/
+
+# pmbootstrap build tree: chroots (root-owned), packages, caches
+/pmb-work/
+
+# Its own git repo, tracked separately on the mondrianwifi branch
+/pmaports/
+
+# Python virtualenv
+/venv/
+
+# Build outputs and large redistributables
+/draft/zImage-multi_v7-test
+/draft/*.dtb
+/flash/recovery.img
+/build.log
+
+# Boot images built during iteration
+*.img
+!flash/*.txt
+
+# Proprietary Qualcomm/Samsung blobs extracted from the device.
+# Not redistributable, and WCNSS_qcom_wlan_nv.bin carries this unit's WiFi
+# calibration/MAC. Kept locally; re-extract from a stock image if needed.
+/firmware/

@@ -1,0 +1,29 @@
+# Reference: <https://postmarketos.org/devicepkg>
+pkgname=device-samsung-mondrianwifi
+pkgdesc="Samsung Galaxy Tab Pro 8.4 (Wi-Fi)"
+pkgver=0.1
+pkgrel=2
+url="https://postmarketos.org"
+license="MIT"
+arch="armv7"
+options="!check !archcheck"
+depends="
+	linux-postmarketos-qcom-msm8974
+	mkbootimg
+	postmarketos-base
+	soc-qcom-msm8974
+"
+makedepends="devicepkg-dev"
+source="deviceinfo"
+
+build() {
+	devicepkg_build $startdir $pkgname
+}
+
+package() {
+	devicepkg_package $startdir $pkgname
+}
+
+sha512sums="
+f8a2afa03b5f0e40ec05a6d03092ea254ca9b1265fdd8fd1217b03fc0f1677926169fb6804eb2199e432bd696ad014a495bdd93ba0728d27ff3f9ed7fb4f1507  deviceinfo
+"

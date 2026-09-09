@@ -1,0 +1,538 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Samsung 1600x2560 dual-DSI video mode panel (Renesas R63319 controller)
+ * as found in the Samsung Galaxy Tab Pro 8.4 (SM-T320, "mondrianwifi").
+ *
+ * DRAFT - derived from panel-renesas-r63419.c. Timings and init sequence
+ * translated from the downstream Samsung MDSS device tree
+ * (dsi_panel_samsung_2560p_video_R63319.dtsi).
+ */
+
+#include <linux/backlight.h>
+#include <linux/bits.h>
+#include <linux/delay.h>
+#include <linux/gpio/consumer.h>
+#include <linux/mod_devicetable.h>
+#include <linux/module.h>
+#include <linux/of.h>
+#include <linux/of_graph.h>
+#include <linux/regulator/consumer.h>
+
+#include <video/mipi_display.h>
+
+#include <drm/drm_connector.h>
+#include <drm/drm_mipi_dsi.h>
+#include <drm/drm_modes.h>
+#include <drm/drm_of.h>
+#include <drm/drm_panel.h>
+#include <drm/drm_probe_helper.h>
+
+/*
+ * The mipi_dsi_dual*() helpers only landed upstream after v6.16, but the
+ * postmarketOS msm8974 kernel (linux-postmarketos-qcom-msm8974, currently
+ * 6.16.12) is where this panel actually has to run. Define local equivalents
+ * built solely on the *_multi primitives that exist in both, so this driver
+ * compiles against either. Semantics match the upstream macros: issue the
+ * same command to each link in turn, accumulating errors in one context.
+ */
+#define r63319_dual(_func, _ctx, _d0, _d1, ...)			\
+	do {							\
+		(_ctx)->dsi = (_d0);				\
+		(_func)((_ctx), ##__VA_ARGS__);			\
+		if (_d1) {					\
+			(_ctx)->dsi = (_d1);			\
+			(_func)((_ctx), ##__VA_ARGS__);		\
+		}						\
+	} while (0)
+
+#define r63319_dcs_seq(_ctx, _d0, _d1, _cmd, _seq...)		\
+	do {							\
+		static const u8 _b[] = { _cmd, ##_seq };	\
+		r63319_dual(mipi_dsi_dcs_write_buffer_multi,	\
+			    _ctx, _d0, _d1, _b, ARRAY_SIZE(_b));\
+	} while (0)
+
+#define r63319_gen_seq(_ctx, _d0, _d1, _seq...)			\
+	do {							\
+		static const u8 _b[] = { _seq };		\
+		r63319_dual(mipi_dsi_generic_write_multi,	\
+			    _ctx, _d0, _d1, _b, ARRAY_SIZE(_b));\
+	} while (0)
+
+/*
+ * The vendor DTS sets qcom,cont-splash-enabled: aboot initialises this panel
+ * and leaves it lit and scanning. Taking it over rather than re-initialising
+ * it avoids a reset we have never managed to drive the panel back out of.
+ */
+static bool inherit_splash = true;
+module_param(inherit_splash, bool, 0644);
+MODULE_PARM_DESC(inherit_splash, "Adopt the bootloader-initialised panel instead of resetting it");
+
+struct r63319_panel {
+	struct drm_panel panel;
+	struct mipi_dsi_device *dsi[2];
+	struct regulator_bulk_data *supplies;
+	struct gpio_desc *reset_gpio;
+	struct gpio_desc *enable_gpio;
+};
+
+/* pm8941_l22 @ 3.3V and pm8941_l12 @ 1.8V, per live sysfs on SM-T320 */
+static const struct regulator_bulk_data r63319_supplies[] = {
+	{ .supply = "vdd" },
+	{ .supply = "vddio" },
+};
+
+static inline struct r63319_panel *to_r63319(struct drm_panel *panel)
+{
+	return container_of(panel, struct r63319_panel, panel);
+}
+
+/*
+ * Colour-enhancement tuning payload, byte-for-byte from the downstream
+ * qcom,mdss-dsi-on-command block. Undocumented vendor register.
+ */
+static const u8 r63319_ce_tuning[] = {
+	0xca, 0x01, 0x80, 0xc8, 0xb9, 0xff, 0xff, 0xff,
+	0xa0, 0x09, 0x20, 0x10, 0x8c, 0x0a, 0x4a, 0x37,
+	0xa0, 0x00, 0xff, 0x0c, 0x0c, 0x0c, 0x0c, 0x3f,
+	0x3f, 0xef, 0x00, 0x10, 0x10, 0x3f, 0x3f, 0x3f,
+	0x3f,
+};
+
+/*
+ * Full panel is 1600x2560; each DSI link drives one 800x2560 half, so every
+ * horizontal figure below is the downstream per-link value doubled.
+ * Derived pixel clock 320.622 MHz -> 961.9 MHz/lane at 24bpp over 4 lanes,
+ * which matches the downstream qcom,mdss-dsi-panel-clockrate of 964 MHz.
+ */
+static const struct drm_display_mode r63319_mode_dual = {
+	/*
+	 * Downstream uses a 150-pixel front porch per link, giving htotal 2068
+	 * and a 320.623 MHz pixel clock. mdp5_kms.c pins the MDP core clock at
+	 * msm8x74v2_config.max_clk = 320 MHz flat (no per-mode calculation), so
+	 * that mode is 0.2% over what the MDP can source and INTF1 underruns:
+	 *   [drm:mdp5_irq_error_handler] *ERROR* errors: 04000000
+	 *   (MDP5_IRQ_INTF1_UNDER_RUN)
+	 * Trim the front porch to 140 per link -> htotal 2048, 317.522 MHz,
+	 * which leaves ~0.8% headroom. Porch length is not panel-critical.
+	 */
+	.clock		= 317522,
+	.hdisplay	= 1600,
+	.hsync_start	= 1880,	/* 1600 + 2*140 front porch */
+	.hsync_end	= 1920,	/* +      2*20  pulse width */
+	.htotal		= 2048,	/* +      2*64  back porch  */
+	.vdisplay	= 2560,
+	.vsync_start	= 2572,	/* 2560 + 12 front porch */
+	.vsync_end	= 2576,	/* +       4 pulse width */
+	.vtotal		= 2584,	/* +       8 back porch  */
+	.width_mm	= 114,	/* 8.4" diagonal, 16:10 */
+	.height_mm	= 182,
+};
+
+/*
+ * Single-link diagnostic mode: one DSI host driving the left 800x2560 half.
+ *
+ * MDP5 has no bonded-DSI support. mdp5_vid_encoder_mode_set() programs
+ * INTF_HSYNC_CTL/DISPLAY_HCTL from the full mode -- there is no equivalent of
+ * dpu_encoder_phys_vid.c's "mode.hdisplay >>= 1" -- and mdp5_crtc.c only
+ * allocates a right mixer when hdisplay > lm.max_width (2048), which 1600 is
+ * not. So with qcom,dual-dsi-mode the INTF is timed for 1600 px/line while the
+ * DSI host is configured for 800, and the resulting overflow shows up as
+ * dsi_err_worker: status=4 (DSI_ERR_STATE_FIFO) at ~49k/s.
+ *
+ * Halving the mode makes the INTF and the host agree. Per-link porches are the
+ * same numbers the dual mode uses, just no longer doubled:
+ *   htotal 1024 x vtotal 2584 x 60 Hz = 158.761 MHz  (exactly half of 317522)
+ *   lane rate = 158.761 MHz * 24 bpp / 4 lanes = 953 Mbps, inside 28nm HPM
+ *   MDP core clock is far below the 320 MHz msm8x74v2 cap
+ */
+static const struct drm_display_mode r63319_mode_single = {
+	.clock		= 158761,
+	.hdisplay	= 800,
+	.hsync_start	= 940,	/* 800 + 140 front porch */
+	.hsync_end	= 960,	/* +      20  pulse width */
+	.htotal		= 1024,	/* +      64  back porch  */
+	.vdisplay	= 2560,
+	.vsync_start	= 2572,
+	.vsync_end	= 2576,
+	.vtotal		= 2584,
+	.width_mm	= 114,
+	.height_mm	= 182,
+};
+
+static void r63319_reset(struct r63319_panel *ctx)
+{
+	gpiod_set_value_cansleep(ctx->reset_gpio, 0);	/* deasserted, pin high */
+	msleep(5);
+	gpiod_set_value_cansleep(ctx->reset_gpio, 1);	/* asserted,   pin low  */
+	msleep(12);
+	gpiod_set_value_cansleep(ctx->reset_gpio, 0);	/* deasserted, pin high */
+	msleep(12);
+}
+
+/* Read one DCS register. Always LP, so stages stay comparable. Returns <0 on error. */
+static int r63319_rd(struct r63319_panel *ctx, u8 cmd, const char *label)
+{
+	struct device *dev = &ctx->dsi[0]->dev;
+	unsigned long saved = ctx->dsi[0]->mode_flags;
+	u8 val = 0;
+	int ret;
+
+	ctx->dsi[0]->mode_flags |= MIPI_DSI_MODE_LPM;
+	ret = mipi_dsi_dcs_read(ctx->dsi[0], cmd, &val, 1);
+	ctx->dsi[0]->mode_flags = saved;
+
+	if (ret < 0) {
+		dev_err(dev, "  rd %s (0x%02x): FAILED %d\n", label, cmd, ret);
+		return ret;
+	}
+	dev_info(dev, "  rd %s (0x%02x) = 0x%02x\n", label, cmd, val);
+	return val;
+}
+
+static void r63319_dump(struct r63319_panel *ctx, const char *stage)
+{
+	struct device *dev = &ctx->dsi[0]->dev;
+	int pm = r63319_rd(ctx, MIPI_DCS_GET_POWER_MODE, "power_mode");
+
+	dev_info(dev, "[%s] sleep_out=%d display_on=%d booster=%d\n", stage,
+		 pm >= 0 && (pm & BIT(4)), pm >= 0 && (pm & BIT(2)),
+		 pm >= 0 && (pm & BIT(6)));
+}
+
+/*
+ * Sequence transcribed from the downstream Samsung MDSS device tree,
+ * qcom,mdss-dsi-on-command in dsi_panel_samsung_2560p_video_R63319.dtsi.
+ * Factored out so it can be replayed in a different transfer mode.
+ */
+static void r63319_send_init(struct r63319_panel *ctx,
+			     struct mipi_dsi_multi_context *dsi_ctx)
+{
+	struct mipi_dsi_device *d0 = ctx->dsi[0], *d1 = ctx->dsi[1];
+
+	r63319_dual(mipi_dsi_dcs_soft_reset_multi, dsi_ctx, d0, d1);
+	mipi_dsi_msleep(dsi_ctx, 10);
+
+	r63319_dcs_seq(dsi_ctx, d0, d1, MIPI_DCS_SET_ADDRESS_MODE, 0x00);
+	r63319_dcs_seq(dsi_ctx, d0, d1, MIPI_DCS_SET_PIXEL_FORMAT, 0x70);
+	r63319_dcs_seq(dsi_ctx, d0, d1, MIPI_DCS_SET_TEAR_ON, 0x01);
+	/* 0x53 = write_control_display: backlight ctrl on, dimming off */
+	r63319_dcs_seq(dsi_ctx, d0, d1, 0x53, 0x2c);
+
+	/* unlock manufacturer command access, then vendor colour-enhance block */
+	r63319_gen_seq(dsi_ctx, d0, d1, 0xb0, 0x00);
+	r63319_gen_seq(dsi_ctx, d0, d1, 0xd6, 0x01);
+	r63319_dual(mipi_dsi_generic_write_multi, dsi_ctx, d0, d1,
+		    r63319_ce_tuning, ARRAY_SIZE(r63319_ce_tuning));
+
+	r63319_dual(mipi_dsi_dcs_exit_sleep_mode_multi, dsi_ctx, d0, d1);
+	mipi_dsi_msleep(dsi_ctx, 120);
+
+	r63319_dual(mipi_dsi_dcs_set_display_on_multi, dsi_ctx, d0, d1);
+	mipi_dsi_msleep(dsi_ctx, 20);
+	r63319_dcs_seq(dsi_ctx, d0, d1, MIPI_DCS_SET_DISPLAY_BRIGHTNESS, 0x15);
+}
+
+/*
+ * Staged bring-up diagnostic.
+ *
+ * Established so far: the panel answers DCS reads (so its logic is powered and
+ * the link works both ways), every write returns accum_err=0, both reset and
+ * enable GPIOs are in the right state, and all three rails are up -- yet
+ * power_mode never moves off 0x08 (sleep in, display off, booster off) whether
+ * the sequence is sent in LP or HS.
+ *
+ * The one link never verified against a source is the init byte sequence
+ * itself. So rather than replay it, walk the panel up one command at a time
+ * and report where it stops responding.
+ */
+static int r63319_on(struct r63319_panel *ctx)
+{
+	struct mipi_dsi_multi_context dsi_ctx = { 0 };
+	struct mipi_dsi_device *d0 = ctx->dsi[0], *d1 = ctx->dsi[1];
+	struct device *dev = &d0->dev;
+	int before, after, pm;
+
+	/* A: baseline, straight after reset, before we have written anything */
+	dev_info(dev, "=== A: baseline after reset ===\n");
+	r63319_dump(ctx, "A");
+	before = r63319_rd(ctx, 0x52, "brightness");
+	r63319_rd(ctx, MIPI_DCS_GET_PIXEL_FORMAT, "pixel_format");
+
+	/*
+	 * B: does ANY write stick? Write display brightness, read it back.
+	 * This separates "panel ignores our writes" from "panel refuses this
+	 * particular sequence" -- the two are indistinguishable from accum_err.
+	 */
+	dev_info(dev, "=== B: write-effectiveness probe ===\n");
+	r63319_dcs_seq(&dsi_ctx, d0, d1, MIPI_DCS_SET_DISPLAY_BRIGHTNESS, 0xa5);
+	mipi_dsi_msleep(&dsi_ctx, 10);
+	after = r63319_rd(ctx, 0x52, "brightness");
+	dev_info(dev, "[B] brightness before=0x%02x after write 0xa5 -> 0x%02x : writes %s\n",
+		 before, after, after == 0xa5 ? "DO stick" : "do NOT stick");
+
+	/* C: the minimal wake -- sleep out on its own, nothing else */
+	dev_info(dev, "=== C: bare exit_sleep_mode ===\n");
+	r63319_dual(mipi_dsi_dcs_exit_sleep_mode_multi, &dsi_ctx, d0, d1);
+	mipi_dsi_msleep(&dsi_ctx, 120);
+	r63319_dump(ctx, "C");
+
+	/* D: soft reset first, with the full 120ms the DCS spec wants, then retry */
+	pm = r63319_rd(ctx, MIPI_DCS_GET_POWER_MODE, "power_mode");
+	if (!(pm > 0 && (pm & BIT(4)))) {
+		dev_info(dev, "=== D: soft_reset + 120ms, then exit_sleep ===\n");
+		r63319_dual(mipi_dsi_dcs_soft_reset_multi, &dsi_ctx, d0, d1);
+		mipi_dsi_msleep(&dsi_ctx, 120);
+		r63319_dual(mipi_dsi_dcs_exit_sleep_mode_multi, &dsi_ctx, d0, d1);
+		mipi_dsi_msleep(&dsi_ctx, 120);
+		r63319_dump(ctx, "D");
+	}
+
+	/* E: display on regardless, so we can see whether that bit moves */
+	dev_info(dev, "=== E: set_display_on ===\n");
+	r63319_dual(mipi_dsi_dcs_set_display_on_multi, &dsi_ctx, d0, d1);
+	mipi_dsi_msleep(&dsi_ctx, 20);
+	r63319_dump(ctx, "E");
+
+	/* F: only now the full vendor sequence, to see if it changes anything */
+	dev_info(dev, "=== F: full vendor init sequence ===\n");
+	r63319_send_init(ctx, &dsi_ctx);
+	r63319_dump(ctx, "F");
+	dev_info(dev, "accum_err=%d\n", dsi_ctx.accum_err);
+
+	return 0;
+}
+
+static int r63319_off(struct r63319_panel *ctx)
+{
+	struct mipi_dsi_multi_context dsi_ctx = { 0 };
+
+	r63319_dual(mipi_dsi_dcs_set_display_off_multi, &dsi_ctx,
+		    ctx->dsi[0], ctx->dsi[1]);
+	mipi_dsi_msleep(&dsi_ctx, 20);
+	r63319_dual(mipi_dsi_dcs_enter_sleep_mode_multi, &dsi_ctx,
+		    ctx->dsi[0], ctx->dsi[1]);
+	mipi_dsi_msleep(&dsi_ctx, 50);
+
+	return dsi_ctx.accum_err;
+}
+
+/*
+ * Downstream qcom,mdss-dsi-reset-sequence = <1 5>, <0 12>, <1 12> gives RAW
+ * pin levels high/low/high, i.e. the panel is held in reset while the line is
+ * LOW -> reset is active low, declared GPIO_ACTIVE_LOW in the DT. gpiod values
+ * below are therefore logical (1 = asserted = pin driven low), which inverts
+ * the raw downstream numbers and, importantly, leaves reset DEASSERTED.
+ */
+static int r63319_prepare(struct drm_panel *panel)
+{
+	struct r63319_panel *ctx = to_r63319(panel);
+	struct device *dev = &ctx->dsi[0]->dev;
+	int ret, pm;
+
+	ret = regulator_bulk_enable(ARRAY_SIZE(r63319_supplies), ctx->supplies);
+	if (ret < 0)
+		return dev_err_probe(dev, ret, "Failed to enable regulators\n");
+
+	/*
+	 * The vendor DTS sets qcom,cont-splash-enabled, so aboot initialises
+	 * and lights this panel before Linux runs -- that is the brief flash
+	 * seen at every boot. Look at the panel BEFORE touching the enable or
+	 * reset lines: if the bootloader already has it awake, inherit that
+	 * state rather than resetting a working panel back into a state we
+	 * have never managed to drive out of.
+	 */
+	pm = r63319_rd(ctx, MIPI_DCS_GET_POWER_MODE, "power_mode@entry");
+	dev_info(dev, "[bootloader-state] pm=0x%02x sleep_out=%d display_on=%d booster=%d\n",
+		 pm, pm > 0 && (pm & BIT(4)), pm > 0 && (pm & BIT(2)),
+		 pm > 0 && (pm & BIT(6)));
+
+	if (inherit_splash) {
+		dev_info(dev, "cont-splash: adopting bootloader panel, no enable/reset/init\n");
+		return 0;
+	}
+
+	gpiod_set_value_cansleep(ctx->enable_gpio, 1);
+	usleep_range(20000, 21000);	/* qcom,mdss-dsi-init-delay-us = 20000 */
+
+	r63319_reset(ctx);
+
+	ret = r63319_on(ctx);
+	dev_info(dev, "r63319_on() returned %d\n", ret);
+	if (ret < 0) {
+		gpiod_set_value_cansleep(ctx->reset_gpio, 1);
+		gpiod_set_value_cansleep(ctx->enable_gpio, 0);
+		regulator_bulk_disable(ARRAY_SIZE(r63319_supplies), ctx->supplies);
+		return ret;
+	}
+
+	return 0;
+}
+
+static int r63319_unprepare(struct drm_panel *panel)
+{
+	struct r63319_panel *ctx = to_r63319(panel);
+
+	/* Mirror prepare: if we adopted the panel, do not tear it down either. */
+	if (inherit_splash)
+		return 0;
+
+	r63319_off(ctx);
+
+	gpiod_set_value_cansleep(ctx->reset_gpio, 1);
+	gpiod_set_value_cansleep(ctx->enable_gpio, 0);
+	regulator_bulk_disable(ARRAY_SIZE(r63319_supplies), ctx->supplies);
+
+	return 0;
+}
+
+static int r63319_get_modes(struct drm_panel *panel, struct drm_connector *connector)
+{
+	struct r63319_panel *ctx = to_r63319(panel);
+
+	return drm_connector_helper_get_modes_fixed(connector,
+			ctx->dsi[1] ? &r63319_mode_dual : &r63319_mode_single);
+}
+
+static const struct drm_panel_funcs r63319_panel_funcs = {
+	.prepare	= r63319_prepare,
+	.unprepare	= r63319_unprepare,
+	.get_modes	= r63319_get_modes,
+};
+
+static int r63319_probe(struct mipi_dsi_device *dsi)
+{
+	struct mipi_dsi_device_info info = { "r63319-panel", 0, NULL };
+	struct device *dev = &dsi->dev;
+	struct mipi_dsi_host *dsi1_host;
+	struct device_node *dsi1_node;
+	struct r63319_panel *ctx;
+	int ret, i;
+
+	ctx = devm_drm_panel_alloc(dev, struct r63319_panel, panel,
+				   &r63319_panel_funcs,
+				   DRM_MODE_CONNECTOR_DSI);
+	if (IS_ERR(ctx))
+		return PTR_ERR(ctx);
+
+	ret = devm_regulator_bulk_get_const(dev, ARRAY_SIZE(r63319_supplies),
+					    r63319_supplies, &ctx->supplies);
+	if (ret < 0)
+		return ret;
+
+	/*
+	 * GPIOD_ASIS, not GPIOD_OUT_*: requesting these as outputs drives reset
+	 * ASSERTED (the line is GPIO_ACTIVE_LOW) and enable deasserted at probe,
+	 * which tears down the bootloader's already-running panel before prepare
+	 * ever gets a look at it. That is what made every pre-reset read come
+	 * back 0x00 -- the panel was being held in reset, not answering zero.
+	 */
+	ctx->reset_gpio = devm_gpiod_get(dev, "reset", GPIOD_ASIS);
+	if (IS_ERR(ctx->reset_gpio))
+		return dev_err_probe(dev, PTR_ERR(ctx->reset_gpio),
+				     "Failed to get reset-gpios\n");
+
+	ctx->enable_gpio = devm_gpiod_get(dev, "enable", GPIOD_ASIS);
+	if (IS_ERR(ctx->enable_gpio))
+		return dev_err_probe(dev, PTR_ERR(ctx->enable_gpio),
+				     "Failed to get enable-gpios\n");
+
+	ctx->dsi[0] = dsi;
+
+	/*
+	 * The second DSI link is optional. With both ports wired up the panel
+	 * runs bonded at 1600x2560; with only port@0 it runs as a single link
+	 * at 800x2560. The latter is the configuration MDP5 can actually drive
+	 * today -- see the comment on r63319_mode_single.
+	 */
+	dsi1_node = of_graph_get_remote_node(dev->of_node, 1, -1);
+	if (dsi1_node) {
+		dsi1_host = of_find_mipi_dsi_host_by_node(dsi1_node);
+		of_node_put(dsi1_node);
+		if (!dsi1_host)
+			return dev_err_probe(dev, -EPROBE_DEFER,
+					     "Failed to find second DSI host\n");
+
+		ctx->dsi[1] = devm_mipi_dsi_device_register_full(dev, dsi1_host,
+								&info);
+		if (IS_ERR(ctx->dsi[1]))
+			return dev_err_probe(dev, PTR_ERR(ctx->dsi[1]),
+					     "Failed to register second DSI device\n");
+	} else {
+		ctx->dsi[1] = NULL;
+		dev_info(dev, "no second DSI link, running single-link 800x2560\n");
+	}
+	mipi_dsi_set_drvdata(dsi, ctx);
+
+	/*
+	 * The DSI host must be up and holding the lanes at LP-11 before the
+	 * panel is prepared, otherwise dsi_host_transfer() rejects every DCS
+	 * command with -EINVAL (it checks msm_host->power_on). This mirrors
+	 * qcom,mdss-dsi-lp11-init in the downstream panel DTS.
+	 */
+	ctx->panel.prepare_prev_first = true;
+
+	ret = drm_panel_of_backlight(&ctx->panel);
+	if (ret)
+		return dev_err_probe(dev, ret, "Failed to get backlight\n");
+
+	/*
+	 * drm_panel_add() rather than devm_drm_panel_add(): the devm variant
+	 * does not exist in 6.16, which is what linux-postmarketos-qcom-msm8974
+	 * currently builds. Paired with drm_panel_remove() in .remove below.
+	 */
+	drm_panel_add(&ctx->panel);
+
+	for (i = 0; i < ARRAY_SIZE(ctx->dsi); i++) {
+		if (!ctx->dsi[i])
+			continue;
+
+		ctx->dsi[i]->lanes = 4;
+		ctx->dsi[i]->format = MIPI_DSI_FMT_RGB888;
+		/*
+		 * MIPI_DSI_CLOCK_NON_CONTINUOUS was copied from
+		 * panel-renesas-r63419.c (a different panel) without evidence.
+		 * The downstream config for THIS panel specifies only
+		 * qcom,mdss-dsi-traffic-mode = "burst_mode" and never asks for a
+		 * non-continuous clock. Letting the clock lane drop to LP between
+		 * bursts makes the panel resync every line and floods
+		 * REG_DSI_FIFO_STATUS (dsi_err_worker: status=4, ~49k/s).
+		 */
+		ctx->dsi[i]->mode_flags = MIPI_DSI_MODE_VIDEO |
+					  MIPI_DSI_MODE_VIDEO_BURST |
+					  MIPI_DSI_MODE_LPM;
+
+		ret = devm_mipi_dsi_attach(dev, ctx->dsi[i]);
+		if (ret < 0)
+			return dev_err_probe(dev, ret,
+					     "Failed to attach DSI %d\n", i);
+	}
+
+	return 0;
+}
+
+static void r63319_remove(struct mipi_dsi_device *dsi)
+{
+	struct r63319_panel *ctx = mipi_dsi_get_drvdata(dsi);
+
+	drm_panel_remove(&ctx->panel);
+}
+
+static const struct of_device_id r63319_of_match[] = {
+	{ .compatible = "samsung,r63319-tabpro84" },
+	{ }
+};
+MODULE_DEVICE_TABLE(of, r63319_of_match);
+
+static struct mipi_dsi_driver r63319_driver = {
+	.probe = r63319_probe,
+	.remove = r63319_remove,
+	.driver = {
+		.name = "panel-samsung-r63319",
+		.of_match_table = r63319_of_match,
+	},
+};
+module_mipi_dsi_driver(r63319_driver);
+
+MODULE_DESCRIPTION("DRM driver for Samsung 1600x2560 dual-DSI R63319 panel (SM-T320)");
+MODULE_LICENSE("GPL");

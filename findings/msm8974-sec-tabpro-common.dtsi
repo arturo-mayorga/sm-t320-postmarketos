@@ -1,0 +1,104 @@
+/* Copyright (c) 2014, The CyanogenMod Project
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/* The purpose of this file is to replace modifications that Samsung made
+ * directly to board file nodes that are shared across devices.
+ */
+
+/include/ "dsi_panel_samsung_2560p_video_R63319.dtsi"
+
+&pm8941_lsid1 {
+	qcom,leds@e200 {
+		status = "disabled";
+	};
+};
+
+/* -------------- qpnp-regulator voltage changes -------------- */
+
+&pm8941_l1 {
+	regulator-min-microvolt = <1200000>;
+	regulator-max-microvolt = <1200000>;
+	qcom,init-voltage = <1200000>;
+};
+
+&pm8941_l3 {
+	regulator-min-microvolt = <1050000>;
+	qcom,init-voltage = <1050000>;
+};
+
+&pm8941_l11 {
+	regulator-min-microvolt = <1200000>;
+};
+
+&pm8941_l13 {
+	regulator-max-microvolt = <3300000>;
+};
+
+&pm8941_l17 {
+	regulator-max-microvolt = <3000000>;
+	qcom,init-voltage = <3000000>;
+};
+
+&pm8941_l22 {
+	regulator-min-microvolt = <2500000>;
+	qcom,init-voltage = <2500000>;
+};
+
+&pm8941_l23 {
+	regulator-min-microvolt = <2800000>;
+	regulator-max-microvolt = <3300000>;
+	qcom,init-ldo-mode = <1>;
+};
+
+&pm8941_mvs1 {
+	parent-supply = <&pm8941_boost>;
+};
+
+&pm8941_lsid1 {
+        qcom,leds@d000 {
+                qcom,rgb_0 {
+			status = "disabled";
+		};
+                qcom,rgb_1 {
+			status = "disabled";
+		};
+	};
+};
+
+/* -------------------------------------------------------- */
+
+&slim_msm {
+	taiko_codec {
+		cdc-vdd-a-1p2v-supply = <&pm8941_l1>;
+		qcom,cdc-vdd-a-1p2v-voltage = <1200000 1200000>;
+		qcom,cdc-vdd-a-1p2v-current = <10000>;
+
+		cdc-vddcx-1-supply = <&pm8941_l1>;
+		qcom,cdc-vddcx-1-voltage = <1200000 1200000>;
+		qcom,cdc-vddcx-1-current = <10000>;
+
+		cdc-vddcx-2-supply = <&pm8941_l1>;
+		qcom,cdc-vddcx-2-voltage = <1200000 1200000>;
+		qcom,cdc-vddcx-2-current = <10000>;
+
+	};
+};
+
+/* -------------------------------------------------------- */
+
+&soc {
+	qcom,ion {
+		qcom,ion-heap@23 { /* OTHER PIL HEAP */
+			qcom,memory-fixed = <0xf500000 0x500000>;
+		};
+	};
+};
