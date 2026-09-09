@@ -120,20 +120,21 @@ static const u8 r63319_ce_tuning[] = {
  */
 static const struct drm_display_mode r63319_mode_dual = {
 	/*
-	 * Downstream uses a 150-pixel front porch per link, giving htotal 2068
-	 * and a 320.623 MHz pixel clock. mdp5_kms.c pins the MDP core clock at
-	 * msm8x74v2_config.max_clk = 320 MHz flat (no per-mode calculation), so
-	 * that mode is 0.2% over what the MDP can source and INTF1 underruns:
-	 *   [drm:mdp5_irq_error_handler] *ERROR* errors: 04000000
-	 *   (MDP5_IRQ_INTF1_UNDER_RUN)
-	 * Trim the front porch to 140 per link -> htotal 2048, 317.522 MHz,
-	 * which leaves ~0.8% headroom. Porch length is not panel-critical.
+	 * Exactly twice the single-link mode: msm_dsi halves every horizontal
+	 * number per host (dsi_host.c, is_bonded_dsi) and so does the MDP5
+	 * split-display path (mdp5_encoder.c), so each link sees the vendor
+	 * 800+150+20+64 = 1034 timing that is known to drive this panel.
+	 *
+	 * An earlier revision trimmed the front porch to 140 per link on the
+	 * theory that the MDP core clock (pinned at 320 MHz) could not source
+	 * 320.6 Mpix/s. That only applies when one mixer carries the whole
+	 * width; in split display each mixer runs its own 160 Mpix/s half.
 	 */
-	.clock		= 317522,
+	.clock		= 320622,
 	.hdisplay	= 1600,
-	.hsync_start	= 1880,	/* 1600 + 2*140 front porch */
-	.hsync_end	= 1920,	/* +      2*20  pulse width */
-	.htotal		= 2048,	/* +      2*64  back porch  */
+	.hsync_start	= 1900,	/* 1600 + 2*150 front porch */
+	.hsync_end	= 1940,	/* +      2*20  pulse width */
+	.htotal		= 2068,	/* +      2*64  back porch  */
 	.vdisplay	= 2560,
 	.vsync_start	= 2572,	/* 2560 + 12 front porch */
 	.vsync_end	= 2576,	/* +       4 pulse width */

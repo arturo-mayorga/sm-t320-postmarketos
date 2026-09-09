@@ -291,7 +291,6 @@
 	 */
 	qcom,dual-dsi-mode;
 	qcom,master-dsi;
-	qcom,sync-dual-dsi;
 
 	vdd-supply   = <&pm8941_l22>;
 	vddio-supply = <&pm8941_l12>;
@@ -348,7 +347,6 @@
 	status = "okay";
 
 	qcom,dual-dsi-mode;
-	qcom,sync-dual-dsi;
 
 	/* DSI1 is the slave link, so it runs off DSI0's PLL */
 	assigned-clock-parents = <&mdss_dsi0_phy DSI_BYTE_PLL_CLK>,
