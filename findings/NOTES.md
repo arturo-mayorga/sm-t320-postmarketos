@@ -1098,3 +1098,22 @@ steps 1958 -> 1651 MHz and the cores hold ~70C.
 S5 register state seen (usid5): MULTIPHASE_CTL 0x51=0x80, PHASE_CTL
 0x52=0x80, GANG_CTL2 0xc1=0x00, VS_CTL 0x61=0x82 (vendor writes 0x85 and a
 PWM_CL setpoint via secure access) - not touched; no OCP evidence.
+
+## STATE OF THE PORT (end of session 5, 2026-09-10)
+Working: full 1600x2560 panel via MDP5 split display (own code), panel
+self-starts, Hyprland + waybar + mako + fuzzel + wvkbd with Omarchy's
+keybindings and Catppuccin theme, autologin, touch (explicit transform),
+accelerometer auto-rotate, Bluetooth (keyboard + mouse paired), Wi-Fi
+(software scan), NTP + RTC-offset clock, Krait cpufreq 300-1958 MHz with
+verified voltage control and thermal throttling, GPU via freedreno,
+Neovim (LazyVim, LSPs from apk), Epiphany, mpv+yt-dlp at 480p.
+Kernel fixes carried in the pmaports patch: msm_gem shrinker oops on VRAM
+objects, wcn36xx scan_offload param, split display, panel driver, DT.
+Open: onboard audio (WCD9320 codec driver does not exist upstream), Venus
+video decode, L2 and GPU clock scaling, Firefox segfault at start (libxul
+in the GLib log handler), USB host mode (for USB audio), battery/charger
+reporting, camera. Local-only: configs/bluetooth (link keys).
+Tooling that made this tractable: build-kernel.sh, regen-patch.py with
+draft/pristine + draft/tree, repack-bootimg-dtb.py + set-bootimg-cmdline.py
+(DT/cmdline changes without a build), the prepared k616 tree for local
+compile checks, apk-proxy.py, mdp5_peek/poke + physpeek, the DCS console.

@@ -124,3 +124,16 @@ once so the offset is saved. Until Wi-Fi works there is no NTP.
   Video is software-decoded (no Venus yet); for YouTube use
     mpv --ytdl-format='bestvideo[height<=480]+bestaudio/best[height<=480]' <url>
   rather than the browser.
+
+## Restore checklist (fresh rootfs)
+  1. apk add the packages listed in install-hyprland.sh PKGS (or use it)
+  2. copy configs/{hypr,waybar,alacritty,mako,fuzzel,mpv,firefox,nvim,
+     backgrounds} into ~user/.config, bin/tab-* + hyprland-dialog to
+     ~/.local/bin and /usr/local/bin, profile to ~/.profile
+  3. system bits: inittab autologin, local.d scripts, sudoers, udev/modules,
+     sshd forwarding, polkit rule, modprobe.d, NetworkManager keyfile,
+     sysctl core pattern (all listed above)
+  4. firmware/ -> /lib/firmware (qcom/msm8974/mondrianwifi, wlan/prima)
+  5. bluetooth/var-lib-bluetooth.tgz -> /var/lib/bluetooth (local-only file)
+  6. install the current linux-postmarketos-qcom-msm8974 apk on the rootfs
+     (modules) and flash its boot image
