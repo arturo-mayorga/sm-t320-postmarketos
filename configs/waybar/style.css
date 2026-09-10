@@ -1,0 +1,15 @@
+/* Catppuccin, flat, matching the Omarchy laptop */
+* { font-family: "JetBrainsMono Nerd Font", monospace; font-size: 13px; min-height: 0; border: none; border-radius: 0; }
+window#waybar { background: #1e1e2e; color: #cdd6f4; border-bottom: 2px solid #313244; }
+#workspaces button { padding: 0 8px; color: #6c7086; background: transparent; }
+#workspaces button.active { color: #89b4fa; border-bottom: 2px solid #89b4fa; }
+#workspaces button.urgent { color: #f38ba8; }
+#clock, #cpu, #memory, #battery, #network, #bluetooth, #wireplumber, #custom-kbd { padding: 0 10px; color: #cdd6f4; }
+#clock { color: #89b4fa; font-weight: bold; }
+#network.disconnected { color: #6c7086; }
+#bluetooth.connected { color: #a6e3a1; }
+#wireplumber.muted { color: #6c7086; }
+#battery.charging { color: #a6e3a1; }
+#battery.warning:not(.charging) { color: #f9e2af; }
+#battery.critical:not(.charging) { color: #f38ba8; }
+#custom-kbd { color: #f5c2e7; }

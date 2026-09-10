@@ -1,0 +1,8 @@
+#!/bin/sh
+# Omarchy's hardware menu: the same TUIs it uses, in a floating terminal.
+choice=$(printf 'Bluetooth\nWi-Fi\nAudio' | fuzzel --dmenu -p "Hardware: " -l 3)
+case "$choice" in
+	Bluetooth) alacritty -T tab-hw-bluetooth -e bluetui ;;
+	Wi-Fi)     alacritty -T tab-hw-wifi -e nmtui ;;
+	Audio)     alacritty -T tab-hw-audio -e pulsemixer ;;
+esac
