@@ -135,6 +135,14 @@
 	};
 };
 
+/* PM8941 RTC: the driver is read-only unless told otherwise; let hwclock -w
+ * persist the clock, since this device has no other time source offline. */
+&pm8941_0 {
+	rtc@6000 {
+		allow-set-time;
+	};
+};
+
 &pm8941_gpios {
 	gpio_keys_pin_a: gpio-keys-active-state {
 		pins = "gpio2", "gpio3", "gpio5";
