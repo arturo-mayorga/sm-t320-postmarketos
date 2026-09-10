@@ -17,7 +17,7 @@ wpa_supplicant,wpa_supplicant-openrc,bluez,bluez-openrc,bluez-btmgmt,wvkbd,\
 bluetui,pulsemixer,networkmanager-wifi,networkmanager-tui,iw,\
 neovim,ripgrep,fd,lazygit,gcc,musl-dev,make,curl,tree-sitter-cli,\
 go,gopls,clang22-extra-tools,lua-language-server,yaml-language-server,nodejs,npm,\
-firefox,epiphany,chrony,iio-sensor-proxy,\
+firefox,epiphany,chrony,iio-sensor-proxy,pipewire-spa-bluez,mpv,yt-dlp,ffmpeg,\
 htop,nano,git"
 
 pmbootstrap shutdown

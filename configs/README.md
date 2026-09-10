@@ -117,3 +117,10 @@ once so the offset is saved. Until Wi-Fi works there is no NTP.
   unlimited before start-hyprland. After a crash: gdb /usr/bin/Hyprland
   /var/crash/core.Hyprland.<pid> -batch -ex bt (gdb is installed).
   bin/hyprland-dialog answers the --safe-mode prompt with "Load my config".
+
+## Audio / video
+  No sound card on mainline for this SoC (Q6 DSP + WCD9320 codec, no codec
+  driver). pipewire-spa-bluez gives Bluetooth (A2DP) output instead.
+  Video is software-decoded (no Venus yet); for YouTube use
+    mpv --ytdl-format='best[height<=480]' <url>
+  rather than the browser.
