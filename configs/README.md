@@ -41,3 +41,18 @@ No sudo needed on the laptop.
                                                       are modules and were not loaded)
   Paired: CorneKBH C9:2A:9C:08:8A:8A (BLE keyboard, trusted)
           MX Anywhere 2S E0:F5:F0:2D:AB:51 (BLE mouse, trusted)
+
+## Keybindings (Omarchy's, ported)
+  hypr/bindings.conf   sourced from hyprland.conf; same keys as the laptop's
+                       `omarchy menu keybindings --print`, omarchy-* commands
+                       replaced by bin/tab-* (-> ~user/.local/bin):
+                         tab-clip           universal copy/paste/cut (terminal-aware)
+                         tab-system-menu    Super+Esc: lock/suspend/logout/reboot/shutdown
+                         tab-keybindings    Super+K: list bindings in fuzzel
+                         tab-screenshot     Print (region) / Shift+Print (output)
+                         tab-close-all      Ctrl+Alt+Del
+                         tab-opacity-toggle Super+Backspace
+  On-screen keyboard moved to Super+Alt+K (Super+K is Omarchy's keybindings menu).
+  /etc/sudoers.d/tab-power  NOPASSWD reboot/poweroff/zzz for the system menu.
+  Not ported (no tablet equivalent yet): browser/file manager, clipboard
+  history, emoji picker, nightlight, idle toggle, bar panels, web-app keys.

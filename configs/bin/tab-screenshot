@@ -1,0 +1,8 @@
+#!/bin/sh
+# region|output -> ~/Pictures/screenshot-<ts>.png and the clipboard
+d=~/Pictures; mkdir -p "$d"; f="$d/screenshot-$(date +%Y-%m-%d_%H-%M-%S).png"
+case "$1" in
+	output) grim "$f" ;;
+	*) g=$(slurp) || exit 0; grim -g "$g" "$f" ;;
+esac
+wl-copy < "$f" && notify-send "Screenshot" "$f"

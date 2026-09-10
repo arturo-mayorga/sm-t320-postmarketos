@@ -1,0 +1,5 @@
+#!/bin/sh
+# Toggle active window between opaque and 0.85, like Omarchy's transparency toggle.
+a=$(hyprctl activewindow -j | grep -o '"address": *"0x[0-9a-f]*"' | cut -d'"' -f4); [ -n "$a" ] || exit 0
+f=/tmp/tab-opacity-$a
+if [ -e "$f" ]; then hyprctl setprop address:$a alpha 1.0 >/dev/null; rm -f "$f"; else hyprctl setprop address:$a alpha 0.85 >/dev/null; touch "$f"; fi

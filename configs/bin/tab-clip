@@ -1,0 +1,12 @@
+#!/bin/sh
+# Universal copy/paste/cut: terminals get their own chords, like Omarchy.
+class=$(hyprctl activewindow -j 2>/dev/null | grep -o '"class": *"[^"]*"' | cut -d'"' -f4)
+case "$class" in
+	Alacritty|foot|kitty|org.wezfurlong.wezterm) term=1 ;;
+	*) term=0 ;;
+esac
+case "$1" in
+	copy)  [ $term = 1 ] && hyprctl dispatch sendshortcut "CTRL, Insert,"  || hyprctl dispatch sendshortcut "CTRL, C," ;;
+	paste) [ $term = 1 ] && hyprctl dispatch sendshortcut "SHIFT, Insert," || hyprctl dispatch sendshortcut "CTRL, V," ;;
+	cut)   hyprctl dispatch sendshortcut "CTRL, X," ;;
+esac

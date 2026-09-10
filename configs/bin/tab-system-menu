@@ -1,0 +1,11 @@
+#!/bin/sh
+# Omarchy's system menu, reduced to what the tablet can do.
+choice=$(printf 'Lock\nSuspend\nRestart Hyprland\nLog out\nReboot\nShutdown' | fuzzel --dmenu -p "System: " -l 6)
+case "$choice" in
+	Lock) hyprlock ;;
+	Suspend) sudo -n zzz 2>/dev/null || notify-send "Suspend" "needs: sudo zzz" ;;
+	"Restart Hyprland") hyprctl dispatch exit ;;
+	"Log out") hyprctl dispatch exit ;;
+	Reboot) sudo -n reboot ;;
+	Shutdown) sudo -n poweroff ;;
+esac

@@ -1,0 +1,2 @@
+#!/bin/sh
+for a in $(hyprctl clients -j | grep -o '"address": *"0x[0-9a-f]*"' | cut -d'"' -f4); do hyprctl dispatch closewindow address:$a >/dev/null; done
