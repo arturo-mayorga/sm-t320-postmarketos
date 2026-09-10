@@ -36,3 +36,7 @@ The tablet has no internet. scratchpad proxy.py (a 40-line CONNECT proxy) on
 the laptop, then
   ssh -R 3129:127.0.0.1:3128 tab 'sudo sh -c "export http_proxy=http://127.0.0.1:3129 https_proxy=$http_proxy; apk add ..."'
 No sudo needed on the laptop.
+  /etc/modules                 + uhid, hid-generic   (BLE HID keyboards/mice arrive
+                                                      through bluez's HoG -> uhid; both
+                                                      are modules and were not loaded)
+  Paired: CorneKBH C9:2A:9C:08:8A:8A (BLE keyboard, trusted)
