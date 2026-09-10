@@ -1,0 +1,44 @@
+#!/bin/sh
+# tab-charger: control the MAX77888 charger on the Galaxy Tab Pro 8.4.
+# The chip sits on the bit-banged I2C bus "i2c-charger" (gpio83/84) at 0x66
+# and uses the MAX77693 register map. Encodings from the vendor driver:
+#   CHG_CNFG_00 (0xB7) mode: bit0 CHGR, bit1 OTG, bit2 BUCK, bit3 BOOST
+#   CHG_CNFG_02 (0xB9) bits5:0 fast-charge current, 33.3 mA/LSB
+#   CHG_CNFG_06 (0xBD) bits3:2 CHGPROT, must be 0b11 to unlock writes
+#   CHG_CNFG_09 (0xC0) bits6:0 input current limit, 25 mA/LSB
+# Usage: tab-charger status | set <input_mA> <charge_mA> | off
+set -e
+ADDR=0x66
+bus() {
+	for d in /sys/bus/i2c/devices/i2c-*; do
+		[ "$(cat "$d/name" 2>/dev/null)" = "i2c-charger" ] && { echo "${d##*i2c-}"; return; }
+	done
+	echo "i2c-charger bus not found" >&2; exit 1
+}
+BUS=$(bus)
+rd() { i2cget -y "$BUS" $ADDR "$1"; }
+wr() { i2cset -y "$BUS" $ADDR "$1" "$2"; }
+unlock() { wr 0xbd 0x0c; }
+
+case "${1:-status}" in
+status)
+	cnfg00=$(rd 0xb7); cnfg02=$(rd 0xb9); cnfg09=$(rd 0xc0)
+	det01=$(rd 0xb4); intok=$(rd 0xb2)
+	printf 'mode      0x%02x (chgr=%d buck=%d)\n' $cnfg00 $((cnfg00 & 1)) $(((cnfg00 >> 2) & 1))
+	printf 'charge cc %d mA\n' $(( (cnfg02 & 0x3f) * 333 / 10 ))
+	printf 'input lim %d mA\n' $(( (cnfg09 & 0x7f) * 25 ))
+	printf 'details01 0x%02x (chg_dtls=0x%x bat_dtls=0x%x)\n' $det01 $((det01 & 0xf)) $(((det01 >> 4) & 7))
+	printf 'int_ok    0x%02x (chgin=%d)\n' $intok $(((intok >> 6) & 1))
+	;;
+set)
+	in_ma=${2:?input mA}; cc_ma=${3:?charge mA}
+	unlock
+	wr 0xc0 $(( in_ma / 25 ))
+	wr 0xb9 $(( cc_ma * 10 / 333 ))
+	wr 0xb7 0x05		# CHGR | BUCK
+	;;
+off)
+	unlock; wr 0xb7 0x04	# BUCK only, no charging
+	;;
+*)	echo "usage: $0 status | set <input_mA> <charge_mA> | off" >&2; exit 2 ;;
+esac

@@ -1141,3 +1141,12 @@ DT now declares both buses (fuel gauge as maxim,max17048 - fix after probe);
 CONFIG_BATTERY_MAX17040/MAX17042 are modules already. hypridle + power-button
 suspend config prepared (configs/hypr/hypridle.conf, bindings) but
 suspend-to-RAM is untested on this kernel.
+
+### Charger / gauge (session 6)
+- MAX77888 encodings (vendor `max77888_charger.c`): CHG_CNFG_09 input limit
+  **25 mA/LSB** (not 20 as on MAX77693), CHG_CNFG_02 CC 33.3 mA/LSB, unlock by
+  writing 0x0C to CHG_CNFG_06, mode 0x05 = CHGR|BUCK. `configs/bin/tab-charger`
+  wraps this; `local.d/charger.start` sets 1500/1500 mA at boot (untested).
+- DT gauge switched to `maxim,max17050` + `rsns-microohm = 10000`
+  (`/tmp/mondrian-r35-safe3.img`, DT-only on r35, cap 1344). Needs verification
+  that the max17042 module binds and reports a sane voltage/SOC.

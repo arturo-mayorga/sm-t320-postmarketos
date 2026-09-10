@@ -87,10 +87,12 @@
 		#address-cells = <1>;
 		#size-cells = <0>;
 
+		/* MAX17050: the max17040 driver bound at this address but read 0 %
+		 * and 2.57 V on a running tablet, i.e. the wrong register map. */
 		fuelgauge: battery@36 {
-			compatible = "maxim,max17048";
+			compatible = "maxim,max17050";
 			reg = <0x36>;
-			maxim,alert-low-soc-level = <5>;
+			maxim,rsns-microohm = <10000>;
 		};
 	};
 
