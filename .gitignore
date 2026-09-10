@@ -25,3 +25,4 @@
 # Not redistributable, and WCNSS_qcom_wlan_nv.bin carries this unit's WiFi
 # calibration/MAC. Kept locally; re-extract from a stock image if needed.
 /firmware/
+/configs/bluetooth/
