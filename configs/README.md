@@ -104,3 +104,8 @@ once so the offset is saved. Until Wi-Fi works there is no NTP.
         the RTC offset for offline boots
   /etc/modprobe.d/wcn36xx.conf     options wcn36xx scan_offload=0 (r32 param)
   Wi-Fi: NetworkManager keyfile home.nmconnection (copied from the laptop)
+
+## Firefox
+  firefox/user.js -> ~/.config/mozilla/firefox/<profile>.default-release/user.js
+  Software WebRender, no GPU process: on freedreno/a330 the GPU process fails
+  EGL context creation (0x3009) and Firefox segfaults ~35s after start.
