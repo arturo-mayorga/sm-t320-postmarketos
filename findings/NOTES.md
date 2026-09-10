@@ -1022,3 +1022,27 @@ range. Trigger is memory pressure with madvised (BO cache) buffers around --
 exactly what compiling 40 grammars in parallel produced.
 Lesson: on this kernel, "Hyprland unresponsive + D state" => check
 /proc/<pid>/wchan and sysrq-w before blaming userspace.
+
+### Wi-Fi works: firmware lies about scan offload (pkgrel 32)
+wcn36xx probed fine ("WCN v2.0 RadioPhy vIris_TSMC_3.0 with 48MHz XO", API
+1.5.1.2) but UPDATE_CHANNEL_LIST (208) and START_SCAN_OFFLOAD (204) never got
+an SMD response. The firmware advertises SCAN_OFFLOAD; the driver only takes
+the mac80211 software-scan path when it does not. New module param
+wcn36xx.scan_offload=0 (/etc/modprobe.d/wcn36xx.conf) forces the legacy path:
+scans list every network, NetworkManager joins, chrony syncs.
+The Wi-Fi/BT firmware timeouts were never the cause of the Bluetooth
+"failures" - that was the shrinker oops (above) freezing the compositor.
+
+### Kernel modules live on the rootfs, not in boot.img
+Flashing --BOOT updates built-in drivers only. wcn36xx, btqcomsmd, uhid,
+inv_mpu6050 etc. come from /lib/modules on the rootfs = whatever kernel apk
+is installed there. Same vermagic, so old modules load silently against a new
+kernel. After a build that touches a module: scp the apk and
+`apk add --allow-untrusted /tmp/linux-...-rN.apk` on the tablet, then flash.
+
+### Accelerometer / auto-rotate
+MPU-6515 on blsp2_i2c6 (vendor r12 dtsi i2c@f9968000, irq gpio 86, l18 +
+lvs1). inv_mpu6050 probes ("mounting matrix not found: using identity").
+iio-sensor-proxy needs a polkit rule here (no elogind session). Sensor says
+"bottom-up" for landscape-right-way-up (transform 3); mapping in
+bin/tab-autorotate, portrait directions still to be confirmed by hand.
