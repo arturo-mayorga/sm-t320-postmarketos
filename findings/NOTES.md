@@ -1064,3 +1064,25 @@ bin/tab-autorotate, portrait directions still to be confirmed by hand.
   red "generated config" bar. Fix was scp the config back + restart the
   session (hyprctl dispatch exit; autologin brings it back).
   Do not run browser experiments while the tablet is in use.
+
+### CPU frequency scaling: DONE (pkgrel 33-35)
+- Bootloader parks Krait at 960 MHz on the HFPLLs (not 300 MHz as first
+  guessed), L2 at 729.6 MHz. No cpufreq in mainline for msm8974.
+- Wiring: hfpll_l2/hfpll0-3 (qcom,msm8974-hfpll; alias regs at -0x80000),
+  kraitcc v2 at root (not under /soc), cpus clocks=<&kraitcc N>,
+  qfprom speedbin@b0 (this unit: speed 1, pvs 2, ver 0 -> vendor falls back
+  to speed0-pvs0-bin-v0), OPP table = that plan (300 MHz/815 mV ..
+  1958.4 MHz/1100 mV), qcom-cpufreq-nvmem + cpufreq-dt built in.
+- Voltage: cores are in BHS mode (ACS 0x14 = 0x403f3f7f: LDO bypassed,
+  powered down) straight off PM8841 S5 (4-phase FTS, S6-S8 phases).
+  * RPM vote for s5 is ACCEPTED but does not reach the rail: the full
+    table hung the boot at 1.96 GHz. Do not use rpm s5.
+  * SPMI: the regulator block is on PM8841 USID **5** (pm8841_1), not 4.
+    On USID 4 it reads as empty; on 5: type 1c/08, VSET 0xb9 = 925 mV.
+    qcom,pm8841-regulators under &pm8841_1 gives a real, readable vdd_apc.
+  * Verified: VSET 0xb7/0xb9/0xaf at 960/1036.8/729.6 MHz; 0xdc (1.1 V)
+    at 1958.4 MHz. 60 s 4-core soak at max OK; loop 5.93 s -> 2.74 s.
+- Thermal: dtsi trips (75C passive, 110C critical) had no cooling device;
+  added #cooling-cells + cooling-maps -> cpufreq, CONFIG_CPU_THERMAL (r35).
+- Not done: L2 scaling (stays at 729.6 MHz; needs the vdd_dig corner for
+  1036.8/1728 MHz), GPU devfreq.
