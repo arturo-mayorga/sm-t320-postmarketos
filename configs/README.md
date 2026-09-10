@@ -109,3 +109,11 @@ once so the offset is saved. Until Wi-Fi works there is no NTP.
   firefox/user.js -> ~/.config/mozilla/firefox/<profile>.default-release/user.js
   Software WebRender, no GPU process: on freedreno/a330 the GPU process fails
   EGL context creation (0x3009) and Firefox segfaults ~35s after start.
+
+## Compositor crash capture
+  hyprland-dbg is not packaged for armv7 and the crash report has no
+  backtrace (musl). Core dumps instead: /etc/sysctl.d/90-coredump.conf sets
+  kernel.core_pattern=/var/crash/core.%e.%p, ~/.profile does ulimit -c
+  unlimited before start-hyprland. After a crash: gdb /usr/bin/Hyprland
+  /var/crash/core.Hyprland.<pid> -batch -ex bt (gdb is installed).
+  bin/hyprland-dialog answers the --safe-mode prompt with "Load my config".
