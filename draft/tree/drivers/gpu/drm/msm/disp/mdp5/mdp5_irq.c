@@ -164,6 +164,49 @@ static const struct kernel_param_ops mdp5_poke_ops = {
 module_param_cb(mdp5_poke, &mdp5_poke_ops, NULL, 0200);
 
 /*
+ * Arbitrary physical register window (ioremap), for SoC blocks with no
+ * driver-side view: Krait ACS power gates (0xf9088000), HFPLLs, etc.
+ *   echo 0xf9088000,32 > /sys/module/msm/parameters/physpeek
+ */
+static int physpeek_set(const char *val, const struct kernel_param *kp)
+{
+	unsigned int addr, count = 16, i;
+	void __iomem *p;
+	char buf[64];
+	char *s, *cnt;
+
+	strscpy(buf, val, sizeof(buf));
+	s = strim(buf);
+	cnt = strchr(s, ',');
+	if (cnt) {
+		*cnt++ = '\0';
+		if (kstrtouint(cnt, 0, &count))
+			return -EINVAL;
+	}
+	if (kstrtouint(s, 0, &addr) || addr & 3 || count > 256)
+		return -EINVAL;
+	p = ioremap(addr, count * 4);
+	if (!p)
+		return -ENOMEM;
+	for (i = 0; i < count; i += 4) {
+		u32 v[4] = { 0 };
+		unsigned int j;
+
+		for (j = 0; j < 4 && i + j < count; j++)
+			v[j] = readl_relaxed(p + (i + j) * 4);
+		pr_info("physpeek: %08x: %08x %08x %08x %08x\n",
+			addr + i * 4, v[0], v[1], v[2], v[3]);
+	}
+	iounmap(p);
+	return 0;
+}
+
+static const struct kernel_param_ops physpeek_ops = {
+	.set = physpeek_set,
+};
+module_param_cb(physpeek, &physpeek_ops, NULL, 0200);
+
+/*
  * Read back what the display is actually scanning out.
  *
  * "Is the panel dark or is the compositor drawing black?" cannot be answered

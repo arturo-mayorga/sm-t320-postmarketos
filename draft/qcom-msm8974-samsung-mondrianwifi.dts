@@ -160,6 +160,130 @@
 	};
 };
 
+/*
+ * Krait CPU clocking. The bootloader parks the cores on the 300 MHz
+ * secondary source and nothing in mainline ever moves them on msm8974
+ * (measured: ~8x slower than rated). Wiring per the vendor kernel
+ * (clock-krait-8974.c / msm8974.dtsi): five HFPLLs, the Krait clock
+ * controller (v2), the speed/PVS fuse at qfprom 0xb0, and the APC supply
+ * PM8841 S5 (S6..S8 are its phases). No OPP table yet: this revision only
+ * registers the clocks and rails so their boot state can be read.
+ */
+&soc {
+	hfpll_l2: clock-controller@f9016000 {
+		compatible = "qcom,msm8974-hfpll", "qcom,hfpll";
+		reg = <0xf9016000 0x30>, <0xf9006000 0x30>;
+		#clock-cells = <0>;
+		clock-output-names = "hfpll_l2";
+		clocks = <&xo_board>;
+		clock-names = "xo";
+	};
+
+	hfpll0: clock-controller@f908a000 {
+		compatible = "qcom,msm8974-hfpll", "qcom,hfpll";
+		reg = <0xf908a000 0x30>, <0xf900a000 0x30>;
+		#clock-cells = <0>;
+		clock-output-names = "hfpll0";
+		clocks = <&xo_board>;
+		clock-names = "xo";
+	};
+
+	hfpll1: clock-controller@f909a000 {
+		compatible = "qcom,msm8974-hfpll", "qcom,hfpll";
+		reg = <0xf909a000 0x30>, <0xf901a000 0x30>;
+		#clock-cells = <0>;
+		clock-output-names = "hfpll1";
+		clocks = <&xo_board>;
+		clock-names = "xo";
+	};
+
+	hfpll2: clock-controller@f90aa000 {
+		compatible = "qcom,msm8974-hfpll", "qcom,hfpll";
+		reg = <0xf90aa000 0x30>, <0xf902a000 0x30>;
+		#clock-cells = <0>;
+		clock-output-names = "hfpll2";
+		clocks = <&xo_board>;
+		clock-names = "xo";
+	};
+
+	hfpll3: clock-controller@f90ba000 {
+		compatible = "qcom,msm8974-hfpll", "qcom,hfpll";
+		reg = <0xf90ba000 0x30>, <0xf903a000 0x30>;
+		#clock-cells = <0>;
+		clock-output-names = "hfpll3";
+		clocks = <&xo_board>;
+		clock-names = "xo";
+	};
+
+};
+
+/* not a memory-mapped block: the Krait muxes are reached through cp15 */
+/ {
+	kraitcc: clock-controller {
+		compatible = "qcom,krait-cc-v2";
+		clocks = <&hfpll0>, <&hfpll1>, <&hfpll2>, <&hfpll3>, <&hfpll_l2>;
+		clock-names = "hfpll0", "hfpll1", "hfpll2", "hfpll3", "hfpll_l2";
+		#clock-cells = <1>;
+	};
+};
+
+&cpu0 {
+	clocks = <&kraitcc 0>;
+	clock-names = "cpu";
+	cpu-supply = <&pm8841_s5>;
+	nvmem-cells = <&speedbin>;
+	nvmem-cell-names = "speed_bin";
+};
+
+&cpu1 {
+	clocks = <&kraitcc 1>;
+	clock-names = "cpu";
+	cpu-supply = <&pm8841_s5>;
+	nvmem-cells = <&speedbin>;
+	nvmem-cell-names = "speed_bin";
+};
+
+&cpu2 {
+	clocks = <&kraitcc 2>;
+	clock-names = "cpu";
+	cpu-supply = <&pm8841_s5>;
+	nvmem-cells = <&speedbin>;
+	nvmem-cell-names = "speed_bin";
+};
+
+&cpu3 {
+	clocks = <&kraitcc 3>;
+	clock-names = "cpu";
+	cpu-supply = <&pm8841_s5>;
+	nvmem-cells = <&speedbin>;
+	nvmem-cell-names = "speed_bin";
+};
+
+&l2 {
+	clocks = <&kraitcc 4>;
+	clock-names = "l2";
+};
+
+&qfprom {
+	/* PTE efuse: speed bin, PVS bin, PVS version (this unit: 1 / 2 / 0) */
+	speedbin: speedbin@b0 {
+		reg = <0xb0 0x4>;
+	};
+};
+
+/* APC (Krait) supply: PM8841 S5, a 4-phase FTS with S6..S8 as its phases */
+&pm8841_0 {
+	regulators {
+		compatible = "qcom,pm8841-regulators";
+
+		pm8841_s5: s5 {
+			regulator-name = "vdd_apc";
+			regulator-min-microvolt = <775000>;
+			regulator-max-microvolt = <1100000>;
+		};
+	};
+};
+
 &pm8941_gpios {
 	gpio_keys_pin_a: gpio-keys-active-state {
 		pins = "gpio2", "gpio3", "gpio5";
