@@ -1046,3 +1046,21 @@ lvs1). inv_mpu6050 probes ("mounting matrix not found: using identity").
 iio-sensor-proxy needs a polkit rule here (no elogind session). Sensor says
 "bottom-up" for landscape-right-way-up (transform 3); mapping in
 bin/tab-autorotate, portrait directions still to be confirmed by hand.
+
+### Browsers, and a compositor crash to remember
+- Firefox 154 segfaults 20-35s after start (SIGSEGV in libxul from
+  g_log_structured_array, i.e. inside its GLib log handler), with or without
+  the GPU process, sandboxes, or GDK_BACKEND=wayland. First run also logs
+  "Failed to create EGLContext: 0x3009". Software-WebRender prefs are in
+  configs/firefox/user.js but do not fix it. Untested: firefox-esr.
+- Epiphany aborts on gdk_display_prepare_gl (GDK_IS_DISPLAY assertion) when
+  launched from ssh; needs a proper Wayland env (WAYLAND_DISPLAY is NOT in the
+  Hyprland process environ; it is wayland-1). Retest from inside the session.
+- Launching the browsers from ssh twice took Hyprland down with SIGABRT
+  (no backtrace: musl, no execinfo). Every crashed instance's log ends in a
+  flood of "atomic drm request: failed to commit: Resource busy". On restart
+  Hyprland claimed "No config file found" although the file was there, used
+  its recovery config (no vfr=true, none of our exec-once), and showed the
+  red "generated config" bar. Fix was scp the config back + restart the
+  session (hyprctl dispatch exit; autologin brings it back).
+  Do not run browser experiments while the tablet is in use.
