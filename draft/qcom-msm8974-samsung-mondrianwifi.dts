@@ -69,6 +69,42 @@
 		};
 	};
 
+	/*
+	 * Battery. Samsung did not use the PMIC's charger: downstream has a
+	 * MAX77888 charger/MUIC on a bit-banged bus (gpio83/84, addr 0x66) and a
+	 * "sec-fuelgauge" at 0x36 on another (gpio51/52). Mainline has no
+	 * MAX77888 driver, so charging runs at the chip's hardware default (the
+	 * laptop USB port could not keep up with a loaded SoC: UVLO power-offs).
+	 * The gauge is a MAX17048 or MAX17050 (same address) - confirm with the
+	 * version register and fix the compatible if needed.
+	 */
+	i2c-fuelgauge {
+		compatible = "i2c-gpio";
+		sda-gpios = <&tlmm 51 (GPIO_ACTIVE_HIGH | GPIO_OPEN_DRAIN)>;
+		scl-gpios = <&tlmm 52 (GPIO_ACTIVE_HIGH | GPIO_OPEN_DRAIN)>;
+		i2c-gpio,delay-us = <4>;
+
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		fuelgauge: battery@36 {
+			compatible = "maxim,max17048";
+			reg = <0x36>;
+			maxim,alert-low-soc-level = <5>;
+		};
+	};
+
+	i2c-charger {
+		compatible = "i2c-gpio";
+		sda-gpios = <&tlmm 83 (GPIO_ACTIVE_HIGH | GPIO_OPEN_DRAIN)>;
+		scl-gpios = <&tlmm 84 (GPIO_ACTIVE_HIGH | GPIO_OPEN_DRAIN)>;
+		i2c-gpio,delay-us = <4>;
+
+		#address-cells = <1>;
+		#size-cells = <0>;
+		/* MAX77888 at 0x66: no mainline driver yet; bus exists for i2cdump */
+	};
+
 	gpio-keys {
 		compatible = "gpio-keys";
 
