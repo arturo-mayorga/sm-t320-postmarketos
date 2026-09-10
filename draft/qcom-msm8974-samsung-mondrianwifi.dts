@@ -225,6 +225,15 @@
 		clocks = <&hfpll0>, <&hfpll1>, <&hfpll2>, <&hfpll3>, <&hfpll_l2>;
 		clock-names = "hfpll0", "hfpll1", "hfpll2", "hfpll3", "hfpll_l2";
 		#clock-cells = <1>;
+		/*
+		 * L2 clock. Nothing upstream scales it with the cores; the
+		 * bootloader leaves it at 729.6 MHz, and Krait needs L2 >= core/2:
+		 * cores at 1958 MHz over a 729.6 MHz L2 die the instant real
+		 * (cache-heavy) code runs, while a register-only loop survives.
+		 * Vendor l2-fmax: 576 (SVS), 1036.8 (NORMAL), 1728 (SUPER_TURBO).
+		 */
+		assigned-clocks = <&kraitcc 4>;
+		assigned-clock-rates = <1036800000>;
 	};
 };
 
@@ -356,24 +365,6 @@
 		opp-1728000000 {
 			opp-hz = /bits/ 64 <1728000000>;
 			opp-microvolt = <1055000 1055000 1100000>;
-			clock-latency-ns = <100000>;
-		};
-
-		opp-1804800000 {
-			opp-hz = /bits/ 64 <1804800000>;
-			opp-microvolt = <1070000 1070000 1100000>;
-			clock-latency-ns = <100000>;
-		};
-
-		opp-1881600000 {
-			opp-hz = /bits/ 64 <1881600000>;
-			opp-microvolt = <1085000 1085000 1100000>;
-			clock-latency-ns = <100000>;
-		};
-
-		opp-1958400000 {
-			opp-hz = /bits/ 64 <1958400000>;
-			opp-microvolt = <1100000 1100000 1100000>;
 			clock-latency-ns = <100000>;
 		};
 	};
