@@ -356,6 +356,24 @@
 	};
 };
 
+/*
+ * Diagnostic only: PM8841 S5 through the SPMI regulator driver. The arbiter
+ * lets the AP read this peripheral's type, but the driver cannot decode its
+ * voltage range; the patched driver dumps the raw registers when that
+ * happens. Not wired to the CPUs (they use the RPM vote above).
+ */
+&pm8841_0 {
+	regulators {
+		compatible = "qcom,pm8841-regulators";
+
+		s5 {
+			regulator-name = "apc_spmi";
+			regulator-min-microvolt = <815000>;
+			regulator-max-microvolt = <1100000>;
+		};
+	};
+};
+
 &pm8941_gpios {
 	gpio_keys_pin_a: gpio-keys-active-state {
 		pins = "gpio2", "gpio3", "gpio5";
