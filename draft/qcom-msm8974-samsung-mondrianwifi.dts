@@ -227,9 +227,89 @@
 	};
 };
 
+/*
+ * CPU OPPs: the vendor kernel's "qcom,speed0-pvs0-bin-v0" plan, its safe
+ * fallback for this unit's speed bin 1 (no speed1 table exists downstream);
+ * these voltages are what Android ran this silicon at. Ceiling is being
+ * raised in steps while the RPM-voted supply is proven (see NOTES).
+ */
+/ {
+	cpu_opp_table: opp-table-cpu {
+		compatible = "operating-points-v2-krait-cpu";
+		opp-shared;
+
+		opp-300000000 {
+			opp-hz = /bits/ 64 <300000000>;
+			opp-microvolt = <815000 815000 1100000>;
+			clock-latency-ns = <100000>;
+		};
+
+		opp-345600000 {
+			opp-hz = /bits/ 64 <345600000>;
+			opp-microvolt = <825000 825000 1100000>;
+			clock-latency-ns = <100000>;
+		};
+
+		opp-422400000 {
+			opp-hz = /bits/ 64 <422400000>;
+			opp-microvolt = <835000 835000 1100000>;
+			clock-latency-ns = <100000>;
+		};
+
+		opp-499200000 {
+			opp-hz = /bits/ 64 <499200000>;
+			opp-microvolt = <845000 845000 1100000>;
+			clock-latency-ns = <100000>;
+		};
+
+		opp-576000000 {
+			opp-hz = /bits/ 64 <576000000>;
+			opp-microvolt = <855000 855000 1100000>;
+			clock-latency-ns = <100000>;
+		};
+
+		opp-652800000 {
+			opp-hz = /bits/ 64 <652800000>;
+			opp-microvolt = <865000 865000 1100000>;
+			clock-latency-ns = <100000>;
+		};
+
+		opp-729600000 {
+			opp-hz = /bits/ 64 <729600000>;
+			opp-microvolt = <875000 875000 1100000>;
+			clock-latency-ns = <100000>;
+		};
+
+		opp-806400000 {
+			opp-hz = /bits/ 64 <806400000>;
+			opp-microvolt = <890000 890000 1100000>;
+			clock-latency-ns = <100000>;
+		};
+
+		opp-883200000 {
+			opp-hz = /bits/ 64 <883200000>;
+			opp-microvolt = <900000 900000 1100000>;
+			clock-latency-ns = <100000>;
+		};
+
+		opp-960000000 {
+			opp-hz = /bits/ 64 <960000000>;
+			opp-microvolt = <915000 915000 1100000>;
+			clock-latency-ns = <100000>;
+		};
+
+		opp-1036800000 {
+			opp-hz = /bits/ 64 <1036800000>;
+			opp-microvolt = <925000 925000 1100000>;
+			clock-latency-ns = <100000>;
+		};
+	};
+};
+
 &cpu0 {
 	clocks = <&kraitcc 0>;
 	clock-names = "cpu";
+	operating-points-v2 = <&cpu_opp_table>;
 	cpu-supply = <&pm8841_s5>;
 	nvmem-cells = <&speedbin>;
 	nvmem-cell-names = "speed_bin";
@@ -238,6 +318,7 @@
 &cpu1 {
 	clocks = <&kraitcc 1>;
 	clock-names = "cpu";
+	operating-points-v2 = <&cpu_opp_table>;
 	cpu-supply = <&pm8841_s5>;
 	nvmem-cells = <&speedbin>;
 	nvmem-cell-names = "speed_bin";
@@ -246,6 +327,7 @@
 &cpu2 {
 	clocks = <&kraitcc 2>;
 	clock-names = "cpu";
+	operating-points-v2 = <&cpu_opp_table>;
 	cpu-supply = <&pm8841_s5>;
 	nvmem-cells = <&speedbin>;
 	nvmem-cell-names = "speed_bin";
@@ -254,6 +336,7 @@
 &cpu3 {
 	clocks = <&kraitcc 3>;
 	clock-names = "cpu";
+	operating-points-v2 = <&cpu_opp_table>;
 	cpu-supply = <&pm8841_s5>;
 	nvmem-cells = <&speedbin>;
 	nvmem-cell-names = "speed_bin";
@@ -268,19 +351,6 @@
 	/* PTE efuse: speed bin, PVS bin, PVS version (this unit: 1 / 2 / 0) */
 	speedbin: speedbin@b0 {
 		reg = <0xb0 0x4>;
-	};
-};
-
-/* APC (Krait) supply: PM8841 S5, a 4-phase FTS with S6..S8 as its phases */
-&pm8841_0 {
-	regulators {
-		compatible = "qcom,pm8841-regulators";
-
-		pm8841_s5: s5 {
-			regulator-name = "vdd_apc";
-			regulator-min-microvolt = <775000>;
-			regulator-max-microvolt = <1100000>;
-		};
 	};
 };
 
@@ -326,6 +396,19 @@
 		pm8841_s3: s3 {
 			regulator-min-microvolt = <1050000>;
 			regulator-max-microvolt = <1050000>;
+		};
+
+		/*
+		 * APC (Krait) supply: 4-phase FTS S5 (+S6..S8 as phases). The
+		 * SPMI arbiter denies the AP direct access to PM8841's SMPS
+		 * peripherals (they read as zero), so it is voted via the RPM.
+		 * Range = the vendor speed0-pvs0 plan (815 mV @ 300 MHz .. 1.1 V
+		 * @ 1958 MHz); cores run in BHS mode, straight off this rail.
+		 */
+		pm8841_s5: s5 {
+			regulator-name = "vdd_apc";
+			regulator-min-microvolt = <815000>;
+			regulator-max-microvolt = <1100000>;
 		};
 	};
 
