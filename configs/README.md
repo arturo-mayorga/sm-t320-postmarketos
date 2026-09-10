@@ -40,3 +40,4 @@ No sudo needed on the laptop.
                                                       through bluez's HoG -> uhid; both
                                                       are modules and were not loaded)
   Paired: CorneKBH C9:2A:9C:08:8A:8A (BLE keyboard, trusted)
+          MX Anywhere 2S E0:F5:F0:2D:AB:51 (BLE mouse, trusted)
