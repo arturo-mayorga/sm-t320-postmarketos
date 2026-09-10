@@ -35,7 +35,11 @@ return {
 	-- 100), which on 4 cores and 2 GB thrashed the box until sshd dropped.
 	{
 		"nvim-treesitter/nvim-treesitter",
-		opts = function()
+		opts = function(_, opts)
+			-- no automatic installs at startup: LazyVim's ensure_installed
+			-- path is uncapped; parsers are installed explicitly instead
+			-- (see configs/README.md)
+			opts.ensure_installed = {}
 			local ts = require("nvim-treesitter")
 			if not ts._tablet_wrapped then
 				local orig = ts.install

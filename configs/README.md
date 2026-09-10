@@ -66,3 +66,11 @@ No sudo needed on the laptop.
                          (no armv7 binaries); LSPs from apk: clangd, gopls,
                          lua-language-server, yaml-language-server.
   Plugin fetch needs the apk proxy tunnel (git honours https_proxy).
+
+## Tree-sitter parsers on the tablet
+  LazyVim's startup auto-install is disabled in nvim/tablet.lua (it built ~40
+  grammars in parallel and thrashed the tablet until sshd dropped and it
+  rebooted). Install explicitly, throttled, with the clock set and the apk
+  proxy tunnel up (git needs https):
+    nvim --headless '+lua require("nvim-treesitter").install({"lua","c"}, { max_jobs = 1 }):wait(600000)' +qa
+  Parsers live in ~/.local/share/nvim/site/parser.
