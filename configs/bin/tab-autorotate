@@ -10,9 +10,12 @@ monitor-sensor --accel 2>/dev/null | while read -r line; do
 		*"Accelerometer orientation is"*) o=${line##* } ;;
 		*) continue ;;
 	esac
+	# Measured: the sensor says "bottom-up" when the tablet is held in the
+	# landscape position that reads right way up (transform 3). No
+	# mount-matrix in the DT yet, so the names are relative to the chip.
 	case "$o" in
-		normal)    t=3 ;;
-		bottom-up) t=1 ;;
+		bottom-up) t=3 ;;
+		normal)    t=1 ;;
 		left-up)   t=0 ;;
 		right-up)  t=2 ;;
 		*) continue ;;

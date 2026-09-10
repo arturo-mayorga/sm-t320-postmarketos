@@ -98,3 +98,9 @@ once so the offset is saved. Until Wi-Fi works there is no NTP.
   /usr/local/bin/hyprland-dialog   bin/hyprland-dialog: stand-in for hyprland-guiutils
                                    (not packaged for armv7); stops the
                                    "hyprland-dialog missing from PATH" notice.
+  /etc/polkit-1/rules.d/50-tablet-sensors.rules   lets user claim sensors via
+        iio-sensor-proxy (no elogind session => polkit would deny)
+  chrony (apk, default runlevel)   NTP over Wi-Fi; clock-offset.stop still saves
+        the RTC offset for offline boots
+  /etc/modprobe.d/wcn36xx.conf     options wcn36xx scan_offload=0 (r32 param)
+  Wi-Fi: NetworkManager keyfile home.nmconnection (copied from the laptop)
