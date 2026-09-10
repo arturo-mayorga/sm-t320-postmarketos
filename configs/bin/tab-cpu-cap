@@ -1,0 +1,9 @@
+#!/bin/sh
+# Conservative CPU ceiling at boot. 1728 MHz crashed under cache-heavy load
+# (not thermal: ~70C, below the 75C trip) -- likely an under-volt or the
+# unmanaged battery sagging. 1344 MHz has run for minutes without trouble.
+# Raise by hand once charging/voltage is understood:
+#   echo 1728000 > /sys/devices/system/cpu/cpufreq/policy0/scaling_max_freq
+for p in /sys/devices/system/cpu/cpufreq/policy*; do
+	echo 1344000 > "$p/scaling_max_freq" 2>/dev/null
+done
