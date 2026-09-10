@@ -1,15 +1,24 @@
 #!/bin/sh
-# Stand-in for hyprland-guiutils' dialog (not packaged for armv7). Hyprland's
-# ANR watchdog and permission prompts call this; show the text as a
-# notification and answer nothing, which Hyprland treats as "no choice".
-title=Hyprland; text=""
+# Stand-in for hyprland-guiutils' dialog (not packaged for armv7).
+# Hyprland calls this for its safe-mode prompt after a crash restart
+# (start-hyprland relaunches it with --safe-mode), for ANR prompts and for
+# permission requests. It reads the chosen button from stdout.
+#   safe mode: answer the "load config" button so the real config comes back
+#   anything else: show the text as a notification and answer nothing
+title=Hyprland; text=""; buttons=""
 while [ $# -gt 0 ]; do
 	case "$1" in
 		--title) title=$2; shift 2 ;;
 		--text) text=$2; shift 2 ;;
-		--buttons) shift 2 ;;
+		--buttons) buttons=$2; shift 2 ;;
 		*) shift ;;
 	esac
 done
 notify-send "$title" "$text" 2>/dev/null
+old_ifs=$IFS; IFS=';'
+for b in $buttons; do
+	case "$b" in *[Cc]onfig*) echo "$b"; exit 0 ;;
+	esac
+done
+IFS=$old_ifs
 exit 0
