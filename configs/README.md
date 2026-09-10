@@ -95,3 +95,6 @@ once so the offset is saved. Until Wi-Fi works there is no NTP.
   orientation -> Hyprland transform for DSI-1 and the touch device.
   Super+Ctrl+R toggles it. Mapping in the script is calibrated by hand:
   the panel is natively portrait, landscape "right way up" is transform 3.
+  /usr/local/bin/hyprland-dialog   bin/hyprland-dialog: stand-in for hyprland-guiutils
+                                   (not packaged for armv7); stops the
+                                   "hyprland-dialog missing from PATH" notice.
