@@ -357,17 +357,19 @@
 };
 
 /*
- * Diagnostic only: PM8841 S5 through the SPMI regulator driver. The arbiter
- * lets the AP read this peripheral's type, but the driver cannot decode its
- * voltage range; the patched driver dumps the raw registers when that
- * happens. Not wired to the CPUs (they use the RPM vote above).
+ * APC (Krait) supply: PM8841 S5, a 4-phase FTS (S6..S8 are its phases),
+ * driven directly over SPMI like the vendor krait-regulator-pmic does. It
+ * lives on the PMIC's second slave (USID 5), not where mainline's PM8841
+ * layout expects regulators: on USID 4 that block reads as empty, on USID 5
+ * it reads type 0x1c/0x08 with the bootloader's 925 mV (VSET 0xb9). The
+ * RPM accepts votes for it but they never reach the hardware.
  */
-&pm8841_0 {
+&pm8841_1 {
 	regulators {
 		compatible = "qcom,pm8841-regulators";
 
-		s5 {
-			regulator-name = "apc_spmi";
+		pm8841_s5: s5 {
+			regulator-name = "vdd_apc";
 			regulator-min-microvolt = <815000>;
 			regulator-max-microvolt = <1100000>;
 		};
@@ -418,18 +420,6 @@
 			regulator-max-microvolt = <1050000>;
 		};
 
-		/*
-		 * APC (Krait) supply: 4-phase FTS S5 (+S6..S8 as phases). The
-		 * SPMI arbiter denies the AP direct access to PM8841's SMPS
-		 * peripherals (they read as zero), so it is voted via the RPM.
-		 * Range = the vendor speed0-pvs0 plan (815 mV @ 300 MHz .. 1.1 V
-		 * @ 1958 MHz); cores run in BHS mode, straight off this rail.
-		 */
-		pm8841_s5: s5 {
-			regulator-name = "vdd_apc";
-			regulator-min-microvolt = <815000>;
-			regulator-max-microvolt = <1100000>;
-		};
 	};
 
 	regulators-1 {
