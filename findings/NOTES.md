@@ -1006,3 +1006,19 @@ Implemented (pkgrel 27/28, behind msm.mdp5_split_dsi=1):
   pairing needing the wcnss "nv download" path. Not yet investigated.
 - pmOS sshd ships AllowTcpForwarding no; sideload died on wvkbd; apk over a
   reverse-tunnelled CONNECT proxy (apk-proxy.py) works without laptop sudo.
+
+### The "tablet is in a bad state" freeze: msm shrinker oops on VRAM objects
+Symptoms: bar stuck on "no-controller", taps ignored, hyprctl silent, Bluetooth
+"not working". Hyprland was in D state, wchan msm_gem_madvise. sysrq-w showed
+two cc1 (tree-sitter parser builds) dying INSIDE the msm shrinker:
+  msm_gem_shrinker_scan -> drm_gem_lru_scan -> purge -> msm_gem_purge+0x100
+  -> die_kernel_fault -> do_exit
+msm_gem_purge() ends with shmem_truncate_range(file_inode(obj->filp)) but every
+object in the VRAM carveout (no IOMMU) is a private GEM object with
+obj->filp == NULL. The dying task never dropped the object's resv lock, so the
+compositor's next madvise slept forever. Fix (pkgrel 31): return before the
+shmem calls when !obj->filp; put_pages() has already released the carveout
+range. Trigger is memory pressure with madvised (BO cache) buffers around --
+exactly what compiling 40 grammars in parallel produced.
+Lesson: on this kernel, "Hyprland unresponsive + D state" => check
+/proc/<pid>/wchan and sysrq-w before blaming userspace.
