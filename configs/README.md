@@ -56,3 +56,13 @@ No sudo needed on the laptop.
   /etc/sudoers.d/tab-power  NOPASSWD reboot/poweroff/zzz for the system menu.
   Not ported (no tablet equivalent yet): browser/file manager, clipboard
   history, emoji picker, nightlight, idle toggle, bar panels, web-app keys.
+
+## Neovim (LazyVim, same config as the laptop)
+  nvim/nvim-config.tgz   ~/.config/nvim from the laptop minus the Omarchy
+                         all-themes list; lazy-lock.json included so
+                         `nvim --headless "+Lazy! restore" +qa` reproduces the
+                         same plugin commits.
+  nvim/tablet.lua        -> lua/plugins/tablet.lua: Mason ensure_installed = {}
+                         (no armv7 binaries); LSPs from apk: clangd, gopls,
+                         lua-language-server, yaml-language-server.
+  Plugin fetch needs the apk proxy tunnel (git honours https_proxy).

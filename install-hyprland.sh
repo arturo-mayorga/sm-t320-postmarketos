@@ -13,7 +13,10 @@ seatd,dbus,polkit,\
 mesa-dri-gallium,mesa-egl,mesa-gles,mesa-gbm,\
 font-jetbrains-mono-nerd,font-dejavu,\
 networkmanager,networkmanager-cli,openssh,\
-wpa_supplicant,wpa_supplicant-openrc,bluez,bluez-openrc,wvkbd,\
+wpa_supplicant,wpa_supplicant-openrc,bluez,bluez-openrc,bluez-btmgmt,wvkbd,\
+bluetui,pulsemixer,networkmanager-wifi,networkmanager-tui,iw,\
+neovim,ripgrep,fd,lazygit,gcc,musl-dev,make,curl,tree-sitter-cli,\
+gopls,clang22-extra-tools,lua-language-server,yaml-language-server,nodejs,npm,\
 htop,nano,git"
 
 pmbootstrap shutdown
