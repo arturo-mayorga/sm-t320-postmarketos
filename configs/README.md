@@ -122,5 +122,5 @@ once so the offset is saved. Until Wi-Fi works there is no NTP.
   No sound card on mainline for this SoC (Q6 DSP + WCD9320 codec, no codec
   driver). pipewire-spa-bluez gives Bluetooth (A2DP) output instead.
   Video is software-decoded (no Venus yet); for YouTube use
-    mpv --ytdl-format='best[height<=480]' <url>
+    mpv --ytdl-format='bestvideo[height<=480]+bestaudio/best[height<=480]' <url>
   rather than the browser.
