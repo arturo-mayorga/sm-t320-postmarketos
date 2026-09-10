@@ -1086,3 +1086,15 @@ bin/tab-autorotate, portrait directions still to be confirmed by hand.
   added #cooling-cells + cooling-maps -> cpufreq, CONFIG_CPU_THERMAL (r35).
 - Not done: L2 scaling (stays at 729.6 MHz; needs the vdd_dig corner for
   1036.8/1728 MHz), GPU devfreq.
+
+### The "crash" during video: thermal shutdown (no cooling device yet)
+PON regs (pm8941 usid0 0x808 = 0x41, 0x80a = 0x02, 0x80c = 0x02): power-off
+was initiated by the SoC via PS_HOLD, then the PMIC powered back on because
+USB cable power was present -> kernel-ordered shutdown, not a crash; RAM is
+lost across it, so ramoops is empty. Cause: thermal critical (110C on a
+CPU zone) with no cooling device, four cores decoding video at 1.5 GHz.
+r35 adds cpufreq as the cooling device: under a 90 s 4-core load the clock
+steps 1958 -> 1651 MHz and the cores hold ~70C.
+S5 register state seen (usid5): MULTIPHASE_CTL 0x51=0x80, PHASE_CTL
+0x52=0x80, GANG_CTL2 0xc1=0x00, VS_CTL 0x61=0x82 (vendor writes 0x85 and a
+PWM_CL setpoint via secure access) - not touched; no OCP evidence.
