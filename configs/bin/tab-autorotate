@@ -1,0 +1,22 @@
+#!/bin/sh
+# Follow the accelerometer (iio-sensor-proxy) and rotate the display and the
+# touch device together. The panel is natively portrait; the mapping below is
+# from calibration, see configs/README.md. Toggle with tab-autorotate stop.
+[ "$1" = stop ] && { pkill -f "monitor-sensor --accel"; exit 0; }
+pgrep -f "monitor-sensor --accel" >/dev/null && exit 0
+monitor-sensor --accel 2>/dev/null | while read -r line; do
+	case "$line" in
+		*"orientation changed:"*) o=${line##*: } ;;
+		*"Accelerometer orientation is"*) o=${line##* } ;;
+		*) continue ;;
+	esac
+	case "$o" in
+		normal)    t=3 ;;
+		bottom-up) t=1 ;;
+		left-up)   t=0 ;;
+		right-up)  t=2 ;;
+		*) continue ;;
+	esac
+	hyprctl keyword monitor "DSI-1,preferred,0x0,2,transform,$t" >/dev/null
+	hyprctl keyword "device[synaptics-s5707]:transform" "$t" >/dev/null
+done

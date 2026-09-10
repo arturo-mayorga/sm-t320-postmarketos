@@ -84,3 +84,14 @@ arbiter: EPERM, even with allow-set-time). /etc/local.d/clock-offset.start
 sets wall clock = RTC + /var/lib/clock-offset at boot; clock-offset.stop saves
 the offset at shutdown. After setting the time by hand, run the .stop script
 once so the offset is saved. Until Wi-Fi works there is no NTP.
+
+## Browsers
+  firefox (Super+Shift+Return / Super+Shift+B, private: Super+Shift+Alt+B)
+  epiphany (Super+Shift+F) - light WebKitGTK browser for touch use
+
+## Auto-rotate (accelerometer)
+  DT: MPU-6515 on blsp2_i2c6 (from the vendor r12 dtsi), inv_mpu6050 module.
+  iio-sensor-proxy (system service) + bin/tab-autorotate (exec-once) map
+  orientation -> Hyprland transform for DSI-1 and the touch device.
+  Super+Ctrl+R toggles it. Mapping in the script is calibrated by hand:
+  the panel is natively portrait, landscape "right way up" is transform 3.
