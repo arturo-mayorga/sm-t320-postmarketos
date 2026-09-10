@@ -21,9 +21,8 @@ Hyprland notes that matter on this hardware:
           a pipewire-pulse server.
 
 ## System bits added for the radios (also on the tablet only)
-  /etc/udev/rules.d/90-bt-addr.rules
-      ACTION=="add", SUBSYSTEM=="bluetooth", KERNEL=="hci0", RUN+="/usr/bin/btmgmt -i hci0 public-addr 00:73:E0:26:9D:CC"
-      (until the DT local-bd-address lands; btqcomsmd registers hci0 unconfigured)
+  (the 90-bt-addr udev rule is gone: since r31 the DT's local-bd-address sets
+   the Bluetooth address)
   /etc/conf.d/wpa_supplicant   wpa_supplicant_args="-u -s"   (dbus mode, for NetworkManager)
   /etc/ssh/sshd_config         AllowTcpForwarding yes        (pmOS default is no; needed for
                                                               the apk proxy tunnel)
@@ -78,3 +77,10 @@ No sudo needed on the laptop.
                                       not running (it was not, after a reboot).
   /etc/rc.conf rc_logger="YES"        boot log in /var/log/rc.log for the above.
   go (apk)                             LazyVim's Go extra runs `go env` on file open.
+
+## Clock
+The PM8941 RTC counts from battery insertion and Linux cannot write it (SPMI
+arbiter: EPERM, even with allow-set-time). /etc/local.d/clock-offset.start
+sets wall clock = RTC + /var/lib/clock-offset at boot; clock-offset.stop saves
+the offset at shutdown. After setting the time by hand, run the .stop script
+once so the offset is saved. Until Wi-Fi works there is no NTP.
