@@ -74,3 +74,7 @@ No sudo needed on the laptop.
   proxy tunnel up (git needs https):
     nvim --headless '+lua require("nvim-treesitter").install({"lua","c"}, { max_jobs = 1 }):wait(600000)' +qa
   Parsers live in ~/.local/share/nvim/site/parser.
+  /etc/local.d/bluetooth-late.start   starts bluetoothd 20s after boot if it is
+                                      not running (it was not, after a reboot).
+  /etc/rc.conf rc_logger="YES"        boot log in /var/log/rc.log for the above.
+  go (apk)                             LazyVim's Go extra runs `go env` on file open.

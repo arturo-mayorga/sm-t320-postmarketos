@@ -16,7 +16,7 @@ networkmanager,networkmanager-cli,openssh,\
 wpa_supplicant,wpa_supplicant-openrc,bluez,bluez-openrc,bluez-btmgmt,wvkbd,\
 bluetui,pulsemixer,networkmanager-wifi,networkmanager-tui,iw,\
 neovim,ripgrep,fd,lazygit,gcc,musl-dev,make,curl,tree-sitter-cli,\
-gopls,clang22-extra-tools,lua-language-server,yaml-language-server,nodejs,npm,\
+go,gopls,clang22-extra-tools,lua-language-server,yaml-language-server,nodejs,npm,\
 htop,nano,git"
 
 pmbootstrap shutdown
