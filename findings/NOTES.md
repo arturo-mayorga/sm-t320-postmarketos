@@ -1117,3 +1117,27 @@ Tooling that made this tractable: build-kernel.sh, regen-patch.py with
 draft/pristine + draft/tree, repack-bootimg-dtb.py + set-bootimg-cmdline.py
 (DT/cmdline changes without a build), the prepared k616 tree for local
 compile checks, apk-proxy.py, mdp5_peek/poke + physpeek, the DCS console.
+
+### Reboot spree after full clocks: L2, not heat (and a flat battery)
+Telemetry streamed to the laptop until death: 52C, load 0.9, clock stepped
+1420800 -> 1958400 and the tablet was gone within a second. PON regs said
+PS_HOLD power-off + cable power-on every time; rc.log shows no orderly
+shutdown, so it is the kernel/SoC dropping PS_HOLD on a lockup.
+Diagnosis: the L2 clock stayed at the bootloader's 729.6 MHz while cores
+went to 1958 MHz; Krait wants L2 >= core/2 (979 MHz). The 60 s soak passed
+because a register-only loop never touches L2; video/browser/idle bursts
+(cache traffic) died. 1420 MHz (needs 710) ran for minutes. Fix prepared in
+/tmp/mondrian-r35-l2.img: kraitcc assigned-clock-rates L2 = 1036.8 MHz,
+cores capped at 1728 MHz; verify with a memory-heavy load, then 1728 MHz L2
+(needs the vdd_dig corner) for the full range. UNTESTED - tablet ran out
+of battery (no charger control under Linux, see below).
+
+### Battery / charger (next session)
+Vendor DT: charger is a MAX77888 (charger + MUIC) on i2c-gpio 83/84 at 0x66
+(no mainline driver; hardware default charge current only) and a
+"sec-fuelgauge" at 0x36 on i2c-gpio 51/52 (MAX17048 or MAX17050; probe the
+version register). The PM8941 SMBB charger is NOT used on this board.
+DT now declares both buses (fuel gauge as maxim,max17048 - fix after probe);
+CONFIG_BATTERY_MAX17040/MAX17042 are modules already. hypridle + power-button
+suspend config prepared (configs/hypr/hypridle.conf, bindings) but
+suspend-to-RAM is untested on this kernel.
