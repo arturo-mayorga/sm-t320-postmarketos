@@ -1,0 +1,14 @@
+#!/bin/sh
+# LP8556 backlight: use the EPROM PWM dimming frequency (CFG5 = 0x14 ->
+# 9.6 kHz) instead of the FSET pin. Samsung runs the chip in "PWM input"
+# mode (DEVICE_CTRL 0x80) with the panel IC generating the PWM, so the board
+# never needed a usable FSET setting; in the mainline driver's register
+# mode (0x85) the chip took its output PWM clock from FSET, the fault
+# register showed recurring OVP/OCP and the screen flickered.
+# Configuration registers are only writable with BL_CTL=0, hence the dance.
+i2c=$(for d in /sys/bus/i2c/devices/i2c-*; do
+	[ "$(cat "$d/name" 2>/dev/null)" = i2c-backlight ] && echo "${d##*i2c-}"; done)
+[ -n "$i2c" ] || exit 0
+i2cset -f -y "$i2c" 0x2c 0x01 0x84
+i2cset -f -y "$i2c" 0x2c 0xa2 0x2e	# CFG2: clear PWM_FSET_EN
+i2cset -f -y "$i2c" 0x2c 0x01 0x85

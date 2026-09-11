@@ -1213,3 +1213,11 @@ suspend-to-RAM is untested on this kernel.
   reboot does. Workaround: never cycle the panel; idle/power key = backlight
   off (tab-screen). TODO kernel: make disable really sleep+reset the panel
   (own regulator refs or reset pulse verified by pm read), fix the -110.
+- Flicker (constant, content-dependent, gone on a dark solid colour): LP8556
+  fault register read 0x3c (OVP+OCP recurring) at brightness 128, 0x38 at
+  255. Samsung's LP8556-backlight.c (mondrianwifi cm-11.0) writes only
+  {0x01,0x80},{0xA5,0x14}: PWM-input mode, the R63319 generates the PWM
+  (DCS 0x51/0x53). Mainline lp855x uses register mode (0x85) and the chip's
+  output PWM clock came from the FSET pin (CFG2 PWM_FSET_EN=1). Clearing
+  PWM_FSET_EN (A2 0x2f -> 0x2e, EPROM PWM_FREQ code 4 = 9.6 kHz) cleared
+  the faults at once. local.d/backlight-init.start applies it at boot.
