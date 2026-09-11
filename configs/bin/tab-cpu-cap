@@ -7,3 +7,11 @@
 for p in /sys/devices/system/cpu/cpufreq/policy*; do
 	echo 1344000 > "$p/scaling_max_freq" 2>/dev/null
 done
+
+# schedutil defaults to a ~0.3 ms rate limit here, giving ~200 frequency
+# transitions/s, each of which reprograms the HFPLL and the APC regulator over
+# SPMI (~1000 bus transactions/s). 10 ms is plenty for an interactive tablet.
+for f in /sys/devices/system/cpu/cpufreq/schedutil/rate_limit_us \
+	 /sys/devices/system/cpu/cpufreq/policy*/schedutil/rate_limit_us; do
+	[ -w "$f" ] && echo 10000 > "$f"
+done
