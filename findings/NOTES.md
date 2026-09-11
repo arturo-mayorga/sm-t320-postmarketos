@@ -1201,3 +1201,15 @@ suspend-to-RAM is untested on this kernel.
   -110 (dsi_cmds2buf_tx while the video engine is stopping). Costs 0.4 s and
   leaves the panel un-slept before its rails are cut. TODO: send ENTER_SLEEP
   before stopping the video engine, or skip the video-done wait.
+- Black panel with everything "on" (caught live): compositor frame fine (grim
+  works with -s 0.5), page flips reach the MDP (DMA0 scanout base alternates),
+  both DSI hosts identical (CTRL=0x1f3 video mode, timing 800x2560 each),
+  panel reads pm=0x1c, LP8556 enabled (0x01=0x85, en gpio19 high, fault reg
+  0x3c = unused strings). Panel supplies l22/l12 have use_count 4/6 (shared
+  with the DSI PHYs) so the panel NEVER loses power on disable, and
+  ENTER_SLEEP_MODE fails (-110) on every disable, so each DPMS/suspend cycle
+  re-inits a panel that is still running (pm@entry=0x18). After a few cycles
+  it stays dark; SWRESET (DCS 0x01) + DPMS cycle did not recover it. Only a
+  reboot does. Workaround: never cycle the panel; idle/power key = backlight
+  off (tab-screen). TODO kernel: make disable really sleep+reset the panel
+  (own regulator refs or reset pulse verified by pm read), fix the -110.
