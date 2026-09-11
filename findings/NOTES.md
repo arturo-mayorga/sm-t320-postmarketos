@@ -1150,3 +1150,13 @@ suspend-to-RAM is untested on this kernel.
 - DT gauge switched to `maxim,max17050` + `rsns-microohm = 10000`
   (`/tmp/mondrian-r35-safe3.img`, DT-only on r35, cap 1344). Needs verification
   that the max17042 module binds and reports a sane voltage/SOC.
+- Live readout on wall charger (uptime 1h15): CHG_CNFG_09=0x48 (1800 mA in),
+  CHG_CNFG_02=0x35 (1764 mA CC), mode 0x05, CHG_DTLS=1 (fast-charge CC),
+  BAT_DTLS=3 (ok). Gauge regs (17050 map): DEVNAME 0x21=0x00AC (=MAX17047/50),
+  SOC_REP 0x06=17 %, VCELL 0x09=3.83 V, CURRENT 0x0a=+576 mA. max17040 driver
+  was reading VCELL at 0x02 (=STATUS) → 2.57 V / 0 %.
+- Battery charge current 625 mA with panel on vs 1199 mA with `dpms off`:
+  panel+backlight ≈ 575 mA. DPMS off/on round-trips cleanly (dpmsStatus 1).
+- hypridle was installed but never launched (no exec-once, no config on the
+  device). Now: config deployed, exec-once added, suspend listener commented
+  out until `zzz` resume is verified.

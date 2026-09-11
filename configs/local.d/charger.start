@@ -1,4 +1,6 @@
 #!/bin/sh
 # Raise the MAX77888 input limit so the tablet charges faster than it drains.
 # The bootloader leaves whatever the previous OS set; vendor uses 1800/1500 on AC.
-/usr/local/bin/tab-charger set 1500 1500 2>/dev/null || true
+# Vendor AC values (bootloader already programs these; re-assert in case a
+# previous OS or a USB-port session lowered them).
+/usr/local/bin/tab-charger set 1800 1764 2>/dev/null || true
