@@ -1187,3 +1187,17 @@ suspend-to-RAM is untested on this kernel.
 - Another UVLO reset (PON 0x40 / POFF 0x20) on the charger at ~27 % while
   idle/suspended or during an lp855x unbind/bind. Four UVLOs so far, all on
   external power: the battery (or its protection IC) collapses on transients.
+- Black-after-wake root state (caught live, uptime 32 min): kernel CRTC
+  enable=0/active=0 and the whole MDSS runtime-suspended (genpd off) while
+  hyprctl reported dpmsStatus 1 and aquamarine had logged "Modesetting DSI-1"
+  for the dpms-on. No panel enable ever ran in the kernel for that request.
+  A second `dpms off; dpms on` from ssh restored it without a reboot. Not
+  reproduced by 200 s DPMS-off alone, nor by suspend→resume→dpms off→on.
+  Intermittent; `tab-display-on` (checks
+  /sys/bus/platform/devices/fd900100.display-controller/power/runtime_status
+  after dpms on, cycles up to 3×, logs via logger) now wraps every dpms-on
+  (hypridle on-resume/after_sleep, power key).
+- Every panel disable logs "wait for video done timed out" + ENTER_SLEEP_MODE
+  -110 (dsi_cmds2buf_tx while the video engine is stopping). Costs 0.4 s and
+  leaves the panel un-slept before its rails are cut. TODO: send ENTER_SLEEP
+  before stopping the video engine, or skip the video-done wait.
