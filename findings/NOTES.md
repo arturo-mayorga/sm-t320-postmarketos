@@ -1167,3 +1167,17 @@ suspend-to-RAM is untested on this kernel.
   assignment was released by the suspend-time disable) → msm_kms_pm_prepare
   -EINVAL. Fixed in r36 (mdp5_pipe_assigned() + tolerant release).
 - `zzz` was not installed (hypridle/sudoers referred to it); `apk add zzz`.
+- r36 verified: 7 consecutive s2idle suspends, no mdp5 WARN, Hyprland clean
+  after resume. With cpuidle state1 (cpu-spc) enabled the sleeps lasted
+  7/21/1.8/1.8/1.8 s of 40 requested (no pm_wakeup_irq, no userspace
+  alarmtimers) and the 6th ended in UVLO reset (PON 0x40, POFF 0x20) on the
+  charger at 25 %. With state1 disabled: 47/41/42 s of 40 → full length, x3.
+  tab-cpu-cap now disables state1 at boot. Suspect the SAW power-collapse
+  sequence's PMIC (vctl) commands with bootloader PMIC_DATA.
+- Suspend power on charger: gauge AvgCurrent right after resume 1339 mA into
+  the battery vs 1199 mA awake with panel off and ~625 mA awake with panel on.
+  So s2idle saves only ~140 mA over "screen off": rails stay up (no RPM sleep
+  sets, WCNSS powered, cores WFI at full voltage). Estimated ~2.5-3 W in
+  suspend → several hours, not days. Real "off" remains poweroff.
+- Every suspend logs "sending DCS ENTER_SLEEP_MODE failed: -110" (cmd DMA
+  timeout in panel disable); resume still cold-inits the panel fine. TODO.
