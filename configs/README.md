@@ -105,7 +105,14 @@ once so the offset is saved. Until Wi-Fi works there is no NTP.
   chrony: `rtcsync` removed from /etc/chrony/chrony.conf. The RTC control
   register is write-protected, and the kernel's 11-minute RTC sync retried
   the failing write and spammed "spmi ... transaction denied (0x5)".
-  zzz (apk)   suspend-to-idle; used by hypridle (10 min) and the power key.
+  zzz (apk)   suspend-to-idle; from the system menu only. Suspend and DPMS
+  cycle the panel, which goes dark after a few cycles (see findings), so:
+  bin/tab-screen off|on|toggle   backlight only, panel keeps streaming.
+  bin/tab-power-key              short press = tab-screen toggle (flock'd).
+  hypr/hypridle.conf             180 s idle = tab-screen off, input = on.
+  /etc/local.d/backlight-perms.start  chmod a+w the backlight brightness.
+  bin/tab-display-on             dpms on + verify mdp5 runtime_status, cycle
+                                 if the CRTC did not come up (kept for menu).
   /etc/local.d/charger.start   = bin/tab-charger set 1800 1764 (MAX77888
   input limit / fast-charge current, vendor AC values). Gauge: MAX17050 via
   DT (max17042 module), reads at /sys/class/power_supply/max170xx_battery.
