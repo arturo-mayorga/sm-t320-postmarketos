@@ -1221,3 +1221,15 @@ suspend-to-RAM is untested on this kernel.
   output PWM clock came from the FSET pin (CFG2 PWM_FSET_EN=1). Clearing
   PWM_FSET_EN (A2 0x2f -> 0x2e, EPROM PWM_FREQ code 4 = 9.6 kHz) cleared
   the faults at once. local.d/backlight-init.start applies it at boot.
+
+### Session 6 summary (2026-09-10)
+Solved: MAX17050 gauge (DT), MAX77888 charger tool + boot hook, hypridle
+deployed, s2idle suspend/resume (r36 mdp5 hwpipe fix), cpu-spc disabled
+(spurious wakes + UVLO), chrony rtcsync off (RTC write flood), schedutil
+rate limit, power-key handler (flock), screen-off = backlight only
+(panel re-init goes dark), LP8556 PWM clock (flicker), powerlog for the
+UVLO investigation, all /etc and local.d bits stored in configs/.
+Open: UVLO resets (battery vs adapter, see /var/log/powerlog.csv), panel
+disable does not sleep/reset the panel (ENTER_SLEEP -110, shared rails),
+idle suspend timer off until that is fixed, CPU cap 1344, Firefox crash,
+portrait rotation directions, onboard audio, Venus, GPU devfreq.
