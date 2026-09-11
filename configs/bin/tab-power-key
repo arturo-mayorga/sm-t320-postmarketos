@@ -1,17 +1,9 @@
 #!/bin/sh
-# Power key handler. The press that wakes the tablet from suspend is also
-# delivered to Hyprland as XF86PowerOff, which would suspend it again at once
-# (the "desktop flashes then goes black" loop). The instance that started the
-# suspend holds a lock until a few seconds after resume; the wake press finds
-# the lock taken and does nothing. No timestamps, so no race with resume.
-#
-# Suspend with the panel ON: resuming from a suspend that began with the panel
-# DPMS-off comes back with a lit but black screen (MDP5 scanout not
-# restored). With the panel active across the suspend the image survives.
+# Power key: short press toggles the screen (backlight) without cycling the
+# panel. Suspend is deliberately not on the power key any more: it cycles the
+# panel and that leaves it dark after a few rounds (see tab-screen). Use the
+# system menu (Super+Escape) to suspend or power off.
 exec 9>/tmp/tab-power-key.lock
 flock -n 9 || exit 0
-~/.local/bin/tab-display-on
-sudo -n zzz
-# zzz returns after resume; make sure the picture is back
-~/.local/bin/tab-display-on
-sleep 3
+~/.local/bin/tab-screen toggle
+sleep 1

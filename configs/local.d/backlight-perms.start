@@ -1,0 +1,3 @@
+#!/bin/sh
+# let the desktop user drive the backlight (tab-screen, hypridle)
+chmod a+w /sys/class/backlight/lcd-bl/brightness

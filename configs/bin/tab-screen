@@ -1,0 +1,23 @@
+#!/bin/sh
+# Screen off/on without touching the panel. Cycling the panel (DPMS off/on,
+# suspend) re-initialises an R63319 that never actually powered down (its
+# rails are shared with the DSI PHYs and ENTER_SLEEP fails), and after a few
+# cycles it goes dark until reboot. The backlight is ~500 of the ~575 mA the
+# display costs, so "off" = backlight 0 with the panel still streaming.
+# Usage: tab-screen off | on | toggle
+B=/sys/class/backlight/lcd-bl/brightness
+SAVE=/tmp/tab-screen.saved
+case "$1" in
+off)
+	cur=$(cat $B)
+	[ "$cur" -gt 0 ] && echo "$cur" > $SAVE
+	echo 0 > $B
+	;;
+on)
+	echo "$(cat $SAVE 2>/dev/null || echo 128)" > $B
+	;;
+toggle)
+	if [ "$(cat $B)" -gt 0 ]; then "$0" off; else "$0" on; fi
+	;;
+*)	echo "usage: $0 off|on|toggle" >&2; exit 2 ;;
+esac
