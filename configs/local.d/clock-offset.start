@@ -1,0 +1,8 @@
+#!/bin/sh
+# The PM8941 RTC counts from battery insertion and cannot be written from
+# Linux here (SPMI arbiter returns EPERM), so keep (wall clock - RTC) in a
+# file, like the vendor kernel did, and re-apply it at boot.
+f=/var/lib/clock-offset
+[ -r $f ] || exit 0
+rtc=$(date -u -d "$(hwclock -r -u 2>/dev/null | cut -c1-19)" +%s 2>/dev/null) || exit 0
+date -s @$(( rtc + $(cat $f) )) >/dev/null

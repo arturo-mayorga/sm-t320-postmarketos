@@ -1,0 +1,5 @@
+// No elogind/seat session here, so allow the desktop user to claim sensors.
+polkit.addRule(function(action, subject) {
+    if (action.id.indexOf("net.hadess.SensorProxy") == 0 && subject.user == "user")
+        return polkit.Result.YES;
+});

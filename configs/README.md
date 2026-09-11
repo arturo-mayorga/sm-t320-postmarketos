@@ -144,9 +144,16 @@ once so the offset is saved. Until Wi-Fi works there is no NTP.
   2. copy configs/{hypr,waybar,alacritty,mako,fuzzel,mpv,firefox,nvim,
      backgrounds} into ~user/.config, bin/tab-* + hyprland-dialog to
      ~/.local/bin and /usr/local/bin, profile to ~/.profile
-  3. system bits: inittab autologin, local.d scripts, sudoers, udev/modules,
-     sshd forwarding, polkit rule, modprobe.d, NetworkManager keyfile,
-     sysctl core pattern (all listed above)
+  3. system bits, now stored as files:
+       configs/local.d/*.start|*.stop  -> /etc/local.d/ (chmod +x) plus
+         /etc/local.d/cpu-cap.start = a copy of bin/tab-cpu-cap
+       configs/etc/{inittab,modules,sudoers.d/tab-power,chrony/chrony.conf,
+         modprobe.d/wcn36xx.conf,polkit-1/rules.d/50-tablet-sensors.rules,
+         ssh/sshd_config,sysctl.d/90-coredump.conf} -> /etc/...
+       bin/tab-charger, tab-cpu-cap, tab-powerlog -> /usr/local/bin
+       /etc/conf.d/wpa_supplicant args "-u -s"; rc-update add bluetooth,
+         wpa_supplicant, networkmanager, iio-sensor-proxy, chronyd, local
+       NetworkManager keyfile for the Wi-Fi (contains the PSK, not in git)
   4. firmware/ -> /lib/firmware (qcom/msm8974/mondrianwifi, wlan/prima)
   5. bluetooth/var-lib-bluetooth.tgz -> /var/lib/bluetooth (local-only file)
   6. install the current linux-postmarketos-qcom-msm8974 apk on the rootfs

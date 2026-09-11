@@ -1,0 +1,4 @@
+#!/bin/sh
+# bluetoothd sometimes is not running after boot (hci0 comes up ~15s in,
+# from the WCNSS remoteproc); make sure it is.
+(sleep 20; rc-service bluetooth status >/dev/null 2>&1 || rc-service bluetooth start) >/dev/null 2>&1 &

@@ -1,0 +1,4 @@
+#!/bin/sh
+# Save (wall clock - RTC) at shutdown; also run this after setting the time.
+rtc=$(date -u -d "$(hwclock -r -u 2>/dev/null | cut -c1-19)" +%s 2>/dev/null) || exit 0
+echo $(( $(date +%s) - rtc )) > /var/lib/clock-offset

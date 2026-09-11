@@ -1,0 +1,1 @@
+user ALL=(root) NOPASSWD: /sbin/reboot, /sbin/poweroff, /usr/bin/zzz, /sbin/zzz

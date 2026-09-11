@@ -1,0 +1,2 @@
+#!/bin/sh
+install -d -o user -g user -m 0700 /run/user/10000
