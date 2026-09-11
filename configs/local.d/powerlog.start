@@ -1,0 +1,2 @@
+#!/bin/sh
+nohup /usr/local/bin/tab-powerlog >/dev/null 2>&1 &

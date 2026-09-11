@@ -1,0 +1,22 @@
+#!/bin/sh
+# Log battery / charger / CPU state every 2 s to /var/log/powerlog.csv so the
+# lines before an under-voltage lockout (PON POFF_REASON1=0x20) show what
+# happened. Run as root from local.d. Log is trimmed to the last 20000 lines
+# at start (~11 hours).
+LOG=/var/log/powerlog.csv
+B=/sys/class/power_supply/max170xx_battery
+CB=$(for d in /sys/bus/i2c/devices/i2c-*; do [ "$(cat "$d/name" 2>/dev/null)" = i2c-charger ] && echo "${d##*i2c-}"; done)
+[ -f "$LOG" ] && tail -n 20000 "$LOG" > "$LOG.tmp" && mv "$LOG.tmp" "$LOG"
+echo "time,soc,mV,mA,avg_mA,tempC,chg_det00,chg_det01,chg_int_ok,khz,cpuC" >> "$LOG"
+while :; do
+	avg=$(i2cget -f -y 1 0x36 0x0b w 2>/dev/null); avg=$((avg)); [ $avg -ge 32768 ] && avg=$((avg-65536))
+	printf '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n' "$(date +%H:%M:%S)" \
+		"$(cat $B/capacity)" "$(( $(cat $B/voltage_now) / 1000 ))" \
+		"$(( $(cat $B/current_now) / 1000 ))" "$(( avg * 15625 / 100000 ))" \
+		"$(( $(cat $B/temp) / 10 ))" \
+		"$(i2cget -y $CB 0x66 0xb3 2>/dev/null)" "$(i2cget -y $CB 0x66 0xb4 2>/dev/null)" \
+		"$(i2cget -y $CB 0x66 0xb2 2>/dev/null)" \
+		"$(cat /sys/devices/system/cpu/cpufreq/policy0/scaling_cur_freq)" \
+		"$(( $(cat /sys/class/thermal/thermal_zone0/temp) / 1000 ))" >> "$LOG"
+	sleep 2
+done
