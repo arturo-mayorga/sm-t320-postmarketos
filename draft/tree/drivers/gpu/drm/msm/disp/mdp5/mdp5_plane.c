@@ -262,6 +262,16 @@ static int mdp5_plane_atomic_check_with_state(struct drm_crtc_state *crtc_state,
 			new_hwpipe = true;
 
 		/*
+		 * The plane state duplicated by drm_atomic_helper_suspend()
+		 * keeps its hwpipe pointer across the disable that released the
+		 * global assignment (and its SMP blocks); on resume the pipe
+		 * must be assigned again or the next suspend fails to release it.
+		 */
+		if (mdp5_state->hwpipe &&
+		    !mdp5_pipe_assigned(state->state, mdp5_state->hwpipe, plane))
+			new_hwpipe = true;
+
+		/*
 		 * (re)allocte hw pipe if we're either requesting for 2 hw pipes
 		 * or we're switching from 2 hw pipes to 1 hw pipe because the
 		 * new src_w can be supported by 1 hw pipe itself.

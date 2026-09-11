@@ -1160,3 +1160,10 @@ suspend-to-RAM is untested on this kernel.
 - hypridle was installed but never launched (no exec-once, no config on the
   device). Now: config deployed, exec-once added, suspend listener commented
   out until `zzz` resume is verified.
+- s2idle suspend/resume works (r35): `rtcwake -m mem -s 30` → panel re-inits,
+  Wi-Fi/BT back, but it woke after ~7 s (source unidentified) and the DCS
+  ENTER_SLEEP_MODE timed out (-110) on the way down. Second suspend failed:
+  WARN in mdp5_pipe_release (plane state kept a hwpipe whose global
+  assignment was released by the suspend-time disable) → msm_kms_pm_prepare
+  -EINVAL. Fixed in r36 (mdp5_pipe_assigned() + tolerant release).
+- `zzz` was not installed (hypridle/sudoers referred to it); `apk add zzz`.

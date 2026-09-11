@@ -153,8 +153,13 @@ int mdp5_pipe_release(struct drm_atomic_state *s, struct mdp5_hw_pipe *hwpipe)
 
 	new_state = &state->hwpipe;
 
-	if (WARN_ON(!new_state->hwpipe_to_plane[hwpipe->idx]))
-		return -EINVAL;
+	/*
+	 * Already released: after drm_atomic_helper_suspend() disabled the
+	 * plane the resumed (duplicated) plane state still carries the old
+	 * hwpipe pointer, but the global assignment is gone.
+	 */
+	if (!new_state->hwpipe_to_plane[hwpipe->idx])
+		return 0;
 
 	DBG("%s: release from plane %s", hwpipe->name,
 		new_state->hwpipe_to_plane[hwpipe->idx]->name);
@@ -167,6 +172,17 @@ int mdp5_pipe_release(struct drm_atomic_state *s, struct mdp5_hw_pipe *hwpipe)
 	new_state->hwpipe_to_plane[hwpipe->idx] = NULL;
 
 	return 0;
+}
+
+bool mdp5_pipe_assigned(struct drm_atomic_state *s,
+			struct mdp5_hw_pipe *hwpipe, struct drm_plane *plane)
+{
+	struct mdp5_global_state *state = mdp5_get_global_state(s);
+
+	if (IS_ERR(state))
+		return false;
+
+	return state->hwpipe.hwpipe_to_plane[hwpipe->idx] == plane;
 }
 
 struct mdp5_hw_pipe *mdp5_pipe_init(struct drm_device *dev,
