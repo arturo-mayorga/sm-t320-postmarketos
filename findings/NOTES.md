@@ -1181,3 +1181,9 @@ suspend-to-RAM is untested on this kernel.
   suspend → several hours, not days. Real "off" remains poweroff.
 - Every suspend logs "sending DCS ENTER_SLEEP_MODE failed: -110" (cmd DMA
   timeout in panel disable); resume still cold-inits the panel fine. TODO.
+- Resume leaves the panel black although the panel driver reports
+  display_on and the LP8556 backlight is lit (user-confirmed). hypridle's
+  zzz timer disabled again until the MDP5 scanout is restored on resume.
+- Another UVLO reset (PON 0x40 / POFF 0x20) on the charger at ~27 % while
+  idle/suspended or during an lp855x unbind/bind. Four UVLOs so far, all on
+  external power: the battery (or its protection IC) collapses on transients.
