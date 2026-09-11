@@ -1,15 +1,13 @@
 #!/bin/sh
 # Power key handler. The press that wakes the tablet from suspend is also
 # delivered to Hyprland as XF86PowerOff, which would suspend it again at once
-# (the "desktop flashes then goes black" loop). Ignore any press within a
-# few seconds of the last resume, and debounce repeated presses.
-STAMP=/tmp/tab-last-resume
-now=$(date +%s)
-last=$(cat "$STAMP" 2>/dev/null || echo 0)
-[ $((now - last)) -lt 5 ] && exit 0
-echo "$now" > "$STAMP"
+# (the "desktop flashes then goes black" loop). The instance that started the
+# suspend holds a lock until a few seconds after resume; the wake press finds
+# the lock taken and does nothing. No timestamps, so no race with resume.
+exec 9>/tmp/tab-power-key.lock
+flock -n 9 || exit 0
 hyprctl dispatch dpms off >/dev/null 2>&1
 sudo -n zzz
 # zzz returns after resume
-date +%s > "$STAMP"
 hyprctl dispatch dpms on >/dev/null 2>&1
+sleep 4
