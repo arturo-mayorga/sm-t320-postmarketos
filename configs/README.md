@@ -102,6 +102,13 @@ once so the offset is saved. Until Wi-Fi works there is no NTP.
         iio-sensor-proxy (no elogind session => polkit would deny)
   chrony (apk, default runlevel)   NTP over Wi-Fi; clock-offset.stop still saves
         the RTC offset for offline boots
+  chrony: `rtcsync` removed from /etc/chrony/chrony.conf. The RTC control
+  register is write-protected, and the kernel's 11-minute RTC sync retried
+  the failing write and spammed "spmi ... transaction denied (0x5)".
+  zzz (apk)   suspend-to-idle; used by hypridle (10 min) and the power key.
+  /etc/local.d/charger.start   = bin/tab-charger set 1800 1764 (MAX77888
+  input limit / fast-charge current, vendor AC values). Gauge: MAX17050 via
+  DT (max17042 module), reads at /sys/class/power_supply/max170xx_battery.
   /etc/modprobe.d/wcn36xx.conf     options wcn36xx scan_offload=0 (r32 param)
   Wi-Fi: NetworkManager keyfile home.nmconnection (copied from the laptop)
 
