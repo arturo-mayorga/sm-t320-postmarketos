@@ -10,8 +10,8 @@
 # restored). With the panel active across the suspend the image survives.
 exec 9>/tmp/tab-power-key.lock
 flock -n 9 || exit 0
-hyprctl dispatch dpms on >/dev/null 2>&1
-sleep 1
+~/.local/bin/tab-display-on
 sudo -n zzz
-# zzz returns after resume
-sleep 4
+# zzz returns after resume; make sure the picture is back
+~/.local/bin/tab-display-on
+sleep 3

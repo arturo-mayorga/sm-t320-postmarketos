@@ -1,0 +1,18 @@
+#!/bin/sh
+# Turn the panel on and make sure it really came on. After a long DPMS-off
+# (minutes; hypridle's idle timeout) the first "dpms on" from Hyprland leaves
+# the kernel CRTC inactive and the MDSS power domain off: backlight lit,
+# black picture, hyprctl still reporting dpmsStatus 1. A second off/on cycle
+# always brings it back. Check the display controller's runtime PM state,
+# which is world-readable, and cycle if it did not become active.
+R=/sys/bus/platform/devices/fd900100.display-controller/power/runtime_status
+hyprctl dispatch dpms on >/dev/null 2>&1
+for i in 1 2 3; do
+	sleep 2
+	[ "$(cat $R 2>/dev/null)" = active ] && exit 0
+	logger -t tab-display-on "mdp5 still $(cat $R) after dpms on, cycling (try $i)"
+	hyprctl dispatch dpms off >/dev/null 2>&1
+	sleep 1
+	hyprctl dispatch dpms on >/dev/null 2>&1
+done
+exit 1
